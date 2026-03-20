@@ -1,454 +1,567 @@
-# WorkShield AI
+<div align="center">
 
-### Behavior-Aware Parametric Income Protection Platform for Gig Delivery Workers
+```
+██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗███████╗██╗  ██╗██╗███████╗██╗     ██████╗
+██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗
+██║ █╗ ██║██║   ██║██████╔╝█████╔╝ ███████╗███████║██║█████╗  ██║     ██║  ██║
+██║███╗██║██║   ██║██╔══██╗██╔═██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
+╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
+ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝
+```
 
----
+**Parametric income protection for India's 15 million gig delivery workers.**
 
-## 1. Problem Definition
-
-India’s gig delivery workforce operates on a high-frequency, low-margin income model where earnings are closely tied to time-of-day demand cycles and external environmental conditions.
-
-Unlike salaried workers, delivery partners face:
-
-- No guaranteed income floor
-- High variability in earning windows
-- Full exposure to external risks beyond their control
-
-### Key Risk Categories
-
-1. Environmental Risk
-   Heavy rainfall, flooding, extreme heat, and hazardous air quality
-
-2. Operational Risk
-   Zone restrictions, curfews, roadblocks, and sudden demand drops
+_Rain detected. Payout triggered. Wallet credited. No forms. No waiting. 90 seconds._
 
 ---
 
-### Core Gap
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=flat-square&logo=mongodb&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)
+![DevTrails](https://img.shields.io/badge/DevTrails-Hackathon_2025-FF6B35?style=flat-square)
 
-Traditional insurance models are not suitable because:
-
-- They rely on manual claims and verification
-- Loss is difficult to validate objectively
-- Processing time does not match daily income cycles
-
-There is a need for a system that can detect loss events objectively and compensate workers in near real time.
-
----
-
-## 2. Solution Overview
-
-WorkShield AI is a parametric insurance platform designed to protect gig workers against income loss caused by external disruptions.
-
-The system:
-
-- Monitors real-time external data sources
-- Evaluates predefined disruption conditions
-- Calculates income loss algorithmically
-- Triggers automatic payouts without manual claims
+</div>
 
 ---
 
-### Core Differentiation
+## THE PROBLEM
 
-The system incorporates behavioral earning patterns into both underwriting and claims processing. Payouts are aligned with actual working hours rather than generic daily averages.
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  GIG WORKER INCOME CURVE  --  WHERE THE MONEY ACTUALLY IS                  ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║    Rs/hr                                                                   ║
+║     120 |                              ###### <-- DINNER RUSH              ║
+║     100 |                        ##    ######     65% of daily income      ║
+║      80 |                  ##    ####  ######  ##                          ║
+║      60 |           ####   ####  ####  ######  ####                        ║
+║      40 |    ####   ####   ####  ####  ######  ####  ####                  ║
+║         +---------------------------------------------------               ║
+║           9am  11am  1pm   3pm   5pm   7pm   9pm   11pm                    ║
+║                                                                            ║
+║    One rainstorm at 7pm  =  Rs 400-500 wiped out                           ║
+║                          =  an entire week of margin gone                  ║
+║                          =  zero recourse for the rider                    ║
+║                                                                            ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  15 million riders  ·  No employer  ·  No sick leave  ·  No safety net     ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
----
-
-## 3. Persona Modeling
-
-### Primary Persona: PeakShift Rider
-
-| Attribute              | Value                                        |
-| ---------------------- | -------------------------------------------- |
-| Work Type              | Part-time, peak-hour focused                 |
-| Active Hours           | 12 PM to 3 PM, 6 PM to 11 PM                 |
-| Income Distribution    | Approximately 65 percent during dinner hours |
-| Average Daily Earnings | ₹500 to ₹800                                 |
-
----
-
-### Underwriting Insight
-
-Income is not evenly distributed throughout the day. A significant portion is concentrated during high-demand periods.
-
-Risk exposure must therefore be modeled as a function of time-weighted earning potential rather than flat daily averages.
-
----
-
-## 4. System Workflow
-
-### Policy Lifecycle
-
-1. Onboarding
-   The user provides:
-   - Location
-   - Platform type
-   - Working hours
-   - Average earnings
-
-2. Risk Profiling
-   The system computes:
-   - Probability of disruption
-   - Time-based exposure
-
-3. Premium Calculation
-   A weekly premium is generated dynamically
-
-4. Policy Activation
-   Coverage begins immediately
+Traditional insurance fails gig workers: manual claims, 7-30 day wait, subjective adjuster decisions.
+WorkShield replaces all of that with a single rule -- **if the event happened, the payout fires. Automatically.**
 
 ---
 
-### Real-Time Operations
+## HOW IT WORKS
 
-External data is continuously ingested from:
-
-- Weather sources
-- Air quality data
-- Zone restriction signals
-- Simulated demand indicators
-
-This data flows through:
-
-1. Event normalization
-2. Trigger evaluation
-3. Loss estimation
-4. Fraud validation
-5. Payout execution
-
----
-
-## 5. Weekly Premium Model
-
-### Premium Structure
-
-Weekly Premium (P) is defined as:
-
-P = Expected Loss + Risk Loading + Operational Margin
-
-Where:
-
-- Expected Loss represents anticipated payouts
-- Risk Loading accounts for variability and uncertainty
-- Operational Margin ensures platform sustainability
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  COMPLETE USER JOURNEY                                                     ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    1  ONBOARD        2  BUY POLICY     3  EVENT FIRES    4  PAYOUT         ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║    Name              Coverage          Rain > 50mm       Rs 2,500          ║
+║    City              Rs 5,000          detected in       credited to       ║
+║    Hours                               worker zone       wallet            ║
+║    Income            Premium:          during active                       ║
+║                      Rs 33 / week      hours             No form filed.    ║
+║                                                          No call made.     ║
+║    Takes 60s         One tap           AI verifies       90 seconds.       ║
+║                                        in < 30 secs                        ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
-### Expected Loss Calculation
+## QUICK START
 
-Expected Loss is computed as:
+```bash
+# One command starts all five services
+git clone https://github.com/your-org/workshield-ai.git
+cd workshield-ai
 
-E(L) = Sum of [Probability of Event × Impact of Event]
+export JWT_SECRET=your_strong_secret_here
 
----
+docker compose up --build
+```
 
-### Time-Weighted Exposure Model
+Open **http://localhost** -- the full application is live.
 
-Impact of an event is calculated as:
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  SERVICES                                                                  ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    PORT      SERVICE          ROLE                                         ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    :80       NGINX            Single entrypoint, routes all traffic        ║
+║    :3000     Next.js PWA      Worker dashboard, policy buyer, history      ║
+║    :4000     Express API      Auth, policies, claims, trigger engine       ║
+║    :5001     Flask AI         Risk scoring, ML fraud detection             ║
+║    :27017    MongoDB          Persistent store, full audit trail           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
-Impact = Hourly Income × Duration × Time Weight Factor
+<details>
+<summary>Run without Docker -- local development</summary>
 
-The Time Weight Factor reflects how critical a time slot is for earnings. Peak hours have higher weights.
+```bash
+# Backend
+cd backend
+cp .env.example .env
+npm install
+npm run dev                        # starts on :4000
 
----
+# AI Service
+cd ai-service
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python app.py                      # starts on :5001
 
-### Example
+# Frontend
+cd client
+bun install
+bun dev                            # starts on :3000, proxies /api and /ai
+```
 
-| Parameter      | Value   |
-| -------------- | ------- |
-| Hourly income  | ₹100    |
-| Event duration | 3 hours |
-| Time weight    | 0.9     |
-
-Impact = 100 × 3 × 0.9 = ₹270
-
----
-
-### Final Premium Example
-
-| Component     | Value |
-| ------------- | ----- |
-| Expected Loss | ₹22   |
-| Risk Loading  | ₹6    |
-| Margin        | ₹5    |
-
-Final Premium = ₹33 per week
-
----
-
-## 6. Parametric Trigger Framework
-
-### Design Principles
-
-Triggers are:
-
-- Objective
-- Measurable
-- Independent of user input
-- Resistant to manipulation
-
----
-
-### Trigger Definitions
-
-#### Rainfall Trigger
-
-Activated when:
-
-- Rainfall exceeds a defined threshold
-- User location falls within the affected area
-- Event occurs during the user’s active working hours
+</details>
 
 ---
 
-#### Heat Stress Trigger
+## ENVIRONMENT VARIABLES
 
-Activated when:
+```bash
+cp backend/.env.example backend/.env
+```
 
-- Temperature exceeds 42°C
-- Air Quality Index exceeds 250
-
-This assumes reduced working capacity and partial income loss.
-
----
-
-#### Demand Collapse Trigger
-
-Activated when:
-
-- Order volume drops significantly, based on simulated platform data
-
-This represents reduced earning opportunity despite availability.
-
----
-
-#### Zone Restriction Trigger
-
-Activated when:
-
-- A location is flagged as restricted due to external conditions
-
-This assumes full loss of working hours in that period.
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  ENVIRONMENT VARIABLES                                                     ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    VARIABLE             REQ   DEFAULT                    PURPOSE           ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    JWT_SECRET           YES   dev-secret-change-me       Signs all auth tok║
+║    MONGO_URI            no    mongo:27017/workshield      Database connecti║
+║    CASHFREE_APP_ID      no    --                         Payout integration║
+║    CASHFREE_SECRET      no    --                         Payout integration║
+║    WEATHER_API_KEY      no    --                         Live trigger oracl║
+║    FLASK_ENV            no    development                AI service mode   ║
+║    PORT                 no    4000                       Backend port      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
 ---
 
-## 7. Loss Estimation Engine
+## SYSTEM ARCHITECTURE
 
-Loss is computed using:
+```
+                              BROWSER
+                                 |
+                    +------------v------------+
+                    |        NGINX  :80       |
+                    |     single entrypoint   |
+                    +------------+------------+
+                                 |
+          +----------------------+----------------------+
+          |  /                   |  /api                |  /ai
+ +--------v--------+   +---------v--------+   +---------v--------+
+ |  Next.js :3000  |   |  Express :4000   |   |   Flask :5001    |
+ |                 |   |                  |   |                  |
+ |  Dashboard      |   |  Auth (JWT)      |   |  Risk scoring    |
+ |  Policy buyer   |   |  Policies        |   |  Fraud detect    |
+ |  Payout history |   |  Trigger engine  |   |  ML inference    |
+ |  PWA / offline  |   |  Claims          |   |  Isolation Forest|
+ +-----------------+   +---------+--------+   +------------------+
+                                 |
+                      +----------v----------+
+                      |    MongoDB :27017   |
+                      |                     |
+                      |  workers            |
+                      |  policies           |
+                      |  claims             |
+                      |  triggers           |
+                      |  payouts            |
+                      |  audit_log          |
+                      +---------------------+
+```
 
-Loss = Sum of (Hourly Income × Lost Hours × Time Weight)
-
-This ensures:
-
-- Accurate compensation
-- No overpayment during inactive hours
-- Alignment with actual earning behavior
+| Service      | Stack                           | Role                                   |
+| ------------ | ------------------------------- | -------------------------------------- |
+| `client`     | Next.js 16, Tailwind, shadcn/ui | Mobile-first PWA, works offline        |
+| `backend`    | Node.js, Express, Mongoose      | Core API + real-time trigger engine    |
+| `ai-service` | Python, Flask, scikit-learn     | ML risk scoring + fraud detection      |
+| `mongo`      | MongoDB 7                       | Data persistence with full audit trail |
+| `nginx`      | NGINX 1.27                      | Reverse proxy, single-origin routing   |
 
 ---
 
-## 8. AI and Machine Learning Integration
+## PARAMETRIC TRIGGERS
 
-### Risk Prediction
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  TRIGGER DECISION FLOW                                                     ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  Real-time data feeds                                                      ║
+║       |                                                                    ║
+║       +---- Weather API  ---- Rain > 50mm?                                 ║
+║       +---- AQI Monitor  ---- Temp > 42C or AQI > 250?                     ║
+║       +---- Platform API ---- Down > 4 hours?                              ║
+║       +---- Hospital DB  ---- Inpatient admission logged?                  ║
+║       +---- GPS + Report ---- Accident verified?                           ║
+║                                     |                                      ║
+║                            YES to any condition                            ║
+║                                     |                                      ║
+║                            Worker in affected zone?                        ║
+║                            Event during active hours?                      ║
+║                                     |                                      ║
+║                            YES to both                                     ║
+║                                     |                                      ║
+║                       +-------------v-------------+                        ║
+║                       |      AI FRAUD CHECK       |                        ║
+║                       |    runs in < 30 seconds   |                        ║
+║                       +---------------------------+                        ║
+║                                     |                                      ║
+║                +--------------------+--------------------+                 ║
+║                |                    |                    |                 ║
+║           Score < 0.3         Score 0.3-0.7        Score > 0.7             ║
+║                |                    |                    |                 ║
+║         [AUTO-APPROVE]        [SOFT-FLAG]         [HARD-BLOCK]             ║
+║          Payout in 90s        Hold + recheck       Investigate             ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
-A supervised learning model estimates the probability of disruption within a given week.
-
-Inputs include:
-
-- Historical weather patterns
-- Location-based risk indicators
-- Working hours
+| Trigger           | Threshold                                    | Payout               | Oracle            |
+| ----------------- | -------------------------------------------- | -------------------- | ----------------- |
+| Heavy rainfall    | > 50 mm in worker's zone during active hours | **50%** of coverage  | IMD / OpenWeather |
+| Vehicle accident  | Any verified incident                        | **100%** of coverage | GPS + report      |
+| Platform outage   | > 4 continuous hours                         | **30%** of coverage  | Status API        |
+| Hospitalization   | Any inpatient admission                      | **100%** of coverage | Hospital record   |
+| Heat / AQI stress | Temp > 42C OR AQI > 250                      | **40%** of coverage  | Weather / AQI API |
 
 ---
 
-### Behavioral Modeling
+## PREMIUM ENGINE
 
-The system learns:
+No flat rates. Every worker gets a personalised premium calculated from time-weighted expected loss.
 
-- When the user typically works
-- Which hours contribute most to earnings
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  PREMIUM FORMULA                                                           ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  P  =  Expected Loss  +  Risk Buffer  +  Operational Margin                ║
+║                                                                            ║
+║  E(L)  =  SUM of  [  P(event)  x  income_per_hour                          ║
+║                                x  lost_hours                               ║
+║                                x  time_weight  ]                           ║
+║                                                                            ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  TIME WEIGHT SCHEDULE          Rationale                                   ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  12pm - 3pm    0.6             Moderate lunch orders                       ║
+║  3pm  - 6pm    0.3             Slow afternoon window                       ║
+║  6pm  - 11pm   0.9  ***        PEAK -- 65% of daily income lives here      ║
+║  11pm - 12am   0.5             Late night taper                            ║
+║  12am - 12pm   0.1             Near-zero earning window                    ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  WORKED EXAMPLE  --  Ravi, dinner-shift rider, Mumbai                      ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  Event:          3hr rain during dinner rush  (peak weight 0.9)            ║
+║  Loss:           Rs 100/hr  x  3hrs  x  0.9   =  Rs 270                    ║
+║  P(rain/week):   8%                                                        ║
+║  Expected loss:  Rs 270  x  0.08              =  Rs  21.60                 ║
+║  Risk buffer:                                     Rs   6.00                ║
+║  Platform margin:                                 Rs   5.00                ║
+║                                                                            ║
+║    --------------------------------------------------                      ║
+║  WEEKLY PREMIUM:                                  Rs  33.00                ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
-This produces a time-weight profile used in both pricing and claims.
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  PREMIUM BREAKDOWN -- WHERE RS 33 GOES                                     ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  Expected Loss   ##############################   Rs 22   (66%)            ║
+║  Risk Buffer     ############                     Rs  6   (18%)            ║
+║  Margin          ##########                       Rs  5   (16%)            ║
+║                  ------------------------------------------                ║
+║  TOTAL                                            Rs 33 / week             ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
 ---
+
+## AI AND ML LAYER
+
+### Risk Scoring
+
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  RISK SCORING  --  /ai/predict                                             ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║    REQUEST                  MODEL                  RESPONSE                ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║    location: Mumbai         Supervised             risk_score: 0.72        ║
+║    hours: [18, 23]    -->   regression       -->   disruption_prob: 0.08   ║
+║    avg_income: Rs 650       trained on:            coverage: Rs 5,000      ║
+║    platform: swiggy         - weather history      weekly_premium: Rs 33   ║
+║    weeks_active: 24         - location risk                                ║
+║                             - earning patterns                             ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
 ### Fraud Detection
 
-A hybrid approach is used.
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║  FRAUD DETECTION  --  /ai/fraud-check                                      ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║                                                                            ║
+║  CLAIM ARRIVES                                                             ║
+║       |                                                                    ║
+║       v                                                                    ║
+║  LAYER 1 -- ML  (Isolation Forest)                                         ║
+║    Is this claim statistically anomalous vs learned patterns?              ║
+║       |                                                                    ║
+║       v                                                                    ║
+║  LAYER 2 -- RULE ENGINE                                                    ║
+║    [+] GPS coordinates inside confirmed disruption zone?                   ║
+║    [+] Platform activity logged near incident time?                        ║
+║    [+] No burst of 50+ claims from same neighbourhood?                     ║
+║    [+] No mock-location / developer-mode / rooted device flag?             ║
+║       |                                                                    ║
+║       v                                                                    ║
+║  LAYER 3 -- TELEMETRY CROSS-CHECK                                          ║
+║    [+] Accelerometer pattern matches claimed movement?                     ║
+║    [+] Cell tower + Wi-Fi fingerprint consistent with GPS?                 ║
+║    [+] Order history corroborates claimed time + location?                 ║
+║                                                                            ║
+║       +------------------+------------------+                              ║
+║       |                  |                  |                              ║
+║    Score < 0.3     Score 0.3-0.7      Score > 0.7                          ║
+║       |                  |                  |                              ║
+║    [AUTO-APPROVE]  [SOFT-FLAG]      [HARD-BLOCK]                           ║
+║     Payout 90s     Hold+recheck      Investigate                           ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
 
-Machine learning:
-
-- Isolation Forest to detect anomalous claim patterns
-
-Rule-based checks:
-
-- Location mismatch between user and event
-- Claims without corresponding activity
-- Repeated claims within short intervals
-
----
-
-## 9. Adversarial Defense & Anti-Spoofing Strategy
-
-Simple GPS verification is not sufficient for a payout decision. WorkShield AI uses a multi-signal fraud decision layer that scores whether a worker is genuinely stranded in a disruption zone or is artificially simulating presence there.
-
----
-
-### 1. The Differentiation
-
-The platform differentiates genuine hardship from spoofing by comparing claimed location against behavioral, device, and environmental evidence in the same time window.
-
-A legitimate stranded worker typically shows:
-
-- A believable movement trail into the affected zone before the disruption escalates
-- Deceleration or stoppage patterns that match worsening weather, blocked roads, or safety pauses
-- Real work context such as accepted orders, route progress, or recent active sessions
-- Network degradation patterns consistent with severe weather rather than a clean static device state
-- Corroboration from nearby external signals such as radar intensity, flood alerts, or multiple independent users in the same area
-
-A spoofing actor typically shows:
-
-- GPS jumps without matching accelerometer, gyroscope, or route progression evidence
-- Device motion that suggests the phone is stationary indoors while the reported path is moving outdoors
-- Mock-location, emulator, rooted-device, or developer-setting indicators
-- No recent delivery workflow activity despite claiming exposure to a red-alert zone
-- Coordinated timing patterns where many users trigger similar claims from the same city cluster at nearly the same moment
-
-The AI layer combines anomaly detection, sequence modeling, and graph-based fraud analysis. Instead of asking whether the GPS point is inside a danger zone, it asks whether the full story told by the device, the worker behavior, and the city-wide event data is internally consistent.
+**Design principle:** False positives hurt honest workers in genuine disasters. The model is tuned
+toward false-negative tolerance during severe-weather events -- provisional payouts go out for
+soft-flagged claims with clean history, and full validation catches up when connectivity restores.
 
 ---
 
-### 2. The Data
+## API REFERENCE
 
-To detect both individual spoofing and coordinated fraud rings, the system analyzes data points beyond raw latitude and longitude.
+### Authentication
 
-Device and sensor signals:
+```bash
+POST /api/auth/register
+     Body: { "name": "Ravi Kumar", "phone": "9876543210",
+             "city": "Mumbai", "platform": "swiggy" }
 
-- Accelerometer and gyroscope consistency with claimed movement
-- Speed, heading changes, stop-start patterns, and route continuity
-- Barometer, battery drain, and device temperature changes during severe weather exposure
-- OS-level mock-location flags, developer-mode indicators, root or jailbreak status, and emulator fingerprints
+POST /api/auth/login
+     Body: { "phone": "9876543210", "password": "yourpassword" }
+     Returns: { "token": "eyJhbGci..." }
+```
 
-Network and location-quality signals:
+### Policies
 
-- Cell tower and Wi-Fi fingerprint consistency
-- GNSS accuracy, satellite count, and timestamp reliability
-- IP geolocation mismatch with reported device location
-- Sudden SIM swaps, device ID churn, or repeated network identity changes
+```bash
+POST /api/policies/quote            # AI-powered premium quote
+POST /api/policies                  # Buy a policy
+GET  /api/policies                  # List active policies
+POST /api/policies/:id/trigger      # Fire a trigger event (test/demo mode)
+```
 
-Work and platform context:
+### Claims and AI Service
 
-- Order acceptance and completion history near the incident window
-- Pickup, drop, and route milestone timestamps
-- App foreground activity, session continuity, and interaction cadence
-- Historical working hours so the system knows whether the worker is normally active at that time
+```bash
+POST /api/claims                    # File a claim
+POST /ai/predict                    # Risk score + premium prediction
+POST /ai/fraud-check                # Run fraud analysis on a claim
+```
 
-Fraud-ring detection signals:
+All `/api/policies` and `/api/claims` endpoints require:
 
-- Multiple claims firing in synchronized bursts from the same micro-region
-- Shared payment accounts, devices, bank endpoints, or referral links across accounts
-- Repeated claim clusters tied to the same neighborhood, handset model mix, or operating-system build
-- Social-pattern anomalies such as many new users surfacing with identical trigger timing during one weather event
-
-External corroboration signals:
-
-- Radar and hyperlocal weather severity
-- Flood alerts, road closure feeds, and disruption notices
-- Simulated demand collapse and platform-side order scarcity
-- Nearby legitimate mobility slowdowns compared with normal traffic behavior
-
-These features allow the system to identify not only fake coordinates, but also the organized behavior of a syndicate attempting to drain the pool at scale.
+```
+Authorization: Bearer <token>
+```
 
 ---
 
-### 3. The UX Balance
+## DEMO -- FULL PAYOUT FLOW IN YOUR TERMINAL
 
-The claim workflow is designed to stop fraud without treating every connectivity failure as suspicious.
+Copy-paste this to simulate a complete rainfall-to-payout cycle:
 
-The system uses three decision paths:
+```bash
+BASE=http://localhost
 
-- Auto-approve when external conditions and worker telemetry strongly align
-- Soft-flag when evidence is incomplete but not clearly fraudulent
-- Hard-block only when there is high-confidence evidence of spoofing or organized abuse
+# Step 1 -- Register a worker
+curl -s -X POST $BASE/api/auth/register   -H "Content-Type: application/json"   -d '{"name":"Ravi Kumar","phone":"9876543210",
+       "password":"test123","city":"Mumbai","platform":"swiggy"}'
 
-For soft-flagged claims, the platform should not immediately reject the worker. Instead it can:
+# Step 2 -- Login, capture JWT
+TOKEN=$(curl -s -X POST $BASE/api/auth/login   -H "Content-Type: application/json"   -d '{"phone":"9876543210","password":"test123"}' | jq -r '.token')
 
-- Hold the payout briefly for secondary checks
-- Request low-friction evidence already available in-app, such as recent task history or route continuity
-- Use a grace window to wait for delayed telemetry caused by bad weather or network congestion
-- Escalate to manual review only if contradictions remain after passive checks
+# Step 3 -- Get an AI premium quote
+curl -s -X POST $BASE/api/policies/quote   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"coverage_amount":5000,"working_hours":[18,23]}'
+# --> { "weekly_premium": 33, "risk_score": 0.72 }
 
-To avoid unfairly penalizing honest workers, the model prioritizes false-positive reduction in severe weather windows. If a worker has a strong historical pattern of legitimate activity and the only missing signal is temporary connectivity, the system can release a provisional partial payout and complete full validation once the network stabilizes.
+# Step 4 -- Buy the policy
+POLICY_ID=$(curl -s -X POST $BASE/api/policies   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"coverage_amount":5000,"duration_weeks":1}' | jq -r '._id')
 
-This creates a balanced workflow: honest workers are protected from harsh denials during genuine outages, while coordinated spoofing attacks are slowed, investigated, and prevented from triggering instant mass payouts.
+# Step 5 -- Fire a 62mm rainfall trigger (above the 50mm threshold)
+curl -s -X POST $BASE/api/policies/$POLICY_ID/trigger   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"trigger_type":"rainfall","intensity_mm":62,"location":"Mumbai"}'
+```
 
----
+Expected response -- payout fires with zero human involvement:
 
-## 10. Platform Choice
-
-The system is designed as a mobile-first Progressive Web Application.
-
-### Rationale
-
-- Delivery workers primarily use mobile devices
-- No installation barrier
-- Works under low connectivity conditions
-- Faster onboarding and accessibility
-
----
-
-## 11. Technology Stack
-
-Frontend:
-
-- Next.js with PWA capabilities
-- Tailwind CSS
-
-Backend:
-
-- Express.js
-
-AI/ML:
-
-- Python with Scikit-learn
-
-Database:
-
-- MongoDB or Supabase
-
-Data Sources:
-
-- Weather APIs
-- Air quality APIs
-- Simulated demand data
-
-Payments:
-
-- Cashfree in test mode
+```json
+{
+  "payout_id": "pw_8f3k2j9x",
+  "status": "payout_initiated",
+  "amount": 2500,
+  "coverage_pct": 50,
+  "trigger": "rainfall_threshold_exceeded",
+  "fraud_score": 0.12,
+  "verdict": "auto_approved",
+  "eta_seconds": 90
+}
+```
 
 ---
 
-## 12. System Design Considerations
+## PROJECT STRUCTURE
 
-- Low latency trigger processing
-- Idempotent payout handling
-- Scalable event ingestion
-- Audit logging for transparency and compliance
+```
+  workshield-ai/
+  |
+  +-- client/                       Next.js PWA  (mobile-first)
+  |   +-- app/
+  |   |   +-- dashboard/            Worker home + live trigger alerts
+  |   |   +-- policy/               Buy and manage coverage
+  |   |   +-- claims/               Claim history and payout status
+  |   +-- components/
+  |       +-- TriggerAlert.tsx      Real-time event notification banner
+  |       +-- PolicyCard.tsx        Coverage display card
+  |       +-- PayoutHistory.tsx     Transaction history feed
+  |
+  +-- backend/                      Express REST API
+  |   +-- routes/
+  |   |   +-- auth.js               JWT registration and login
+  |   |   +-- policies.js           Policy CRUD + AI quote engine
+  |   |   +-- claims.js             Claim intake + status
+  |   |   +-- triggers.js           Real-time trigger evaluation
+  |   +-- models/
+  |   |   +-- Worker.js
+  |   |   +-- Policy.js
+  |   |   +-- Claim.js
+  |   +-- middleware/
+  |   |   +-- auth.js               JWT verification middleware
+  |   +-- .env.example              <-- start here
+  |
+  +-- ai-service/                   Flask ML microservice
+  |   +-- app.py                    Routes: /predict + /fraud-check
+  |   +-- models/
+  |   |   +-- risk_model.pkl        Trained risk scorer
+  |   |   +-- fraud_model.pkl       Isolation Forest anomaly detector
+  |   +-- requirements.txt
+  |
+  +-- nginx/
+  |   +-- nginx.conf                Proxy rules
+  |
+  +-- docker-compose.yml            <-- one command to start everything
+```
 
 ---
 
-## 13. Conclusion
+## PRODUCTION CHECKLIST
 
-WorkShield AI introduces a parametric insurance framework tailored for gig workers by combining real-time data, behavioral modeling, and automated payouts.
+```
+  SECURITY
+  ------------------------------------------------------------------------
+  [ ] JWT_SECRET from secrets manager -- never committed to repo
+  [ ] MongoDB authentication enabled  (--auth flag)
+  [ ] TLS via Let's Encrypt / Certbot on NGINX
+  [ ] Rate limiting:  /api/auth    <= 5 req/min
+                      /api/claims  <= 10 req/min
 
-The system ensures:
+  ML / AI
+  ------------------------------------------------------------------------
+  [ ] Replace heuristic fraud model with trained XGBoost
+  [ ] Monthly model retraining on fresh weather + claim data
+  [ ] Tune fraud thresholds -- minimize false positives during
+      genuine disaster events
 
-- Fair compensation
-- Minimal user effort
-- Scalable and transparent operations
+  INTEGRATIONS
+  ------------------------------------------------------------------------
+  [ ] Live IMD Weather API  (replace simulated oracle)
+  [ ] Swiggy / Zomato platform status webhooks
+  [ ] Cashfree: test mode --> live  (worker KYC required)
+
+  RELIABILITY
+  ------------------------------------------------------------------------
+  [ ] Idempotency keys on all payout endpoints
+  [ ] Append-only audit log for every claim event
+  [ ] Dead-letter queue for failed trigger events
+  [ ] Health checks on all Docker containers
+```
 
 ---
 
-## Final Proposition
+## TECH STACK
 
-This platform transforms insurance from a manual claims process into a real-time income protection system aligned with how gig workers actually earn.
+| Layer    | Technology                | Why                                               |
+| -------- | ------------------------- | ------------------------------------------------- |
+| Frontend | Next.js 16 + Tailwind CSS | PWA support, offline-capable, mobile-first        |
+| Backend  | Node.js + Express         | Lightweight, event-driven trigger processing      |
+| ML / AI  | Python + scikit-learn     | Isolation Forest for anomaly, regression for risk |
+| Database | MongoDB 7                 | Flexible schema for evolving claim structures     |
+| Payments | Cashfree API              | India-first, UPI + wallet, instant settlement     |
+| Proxy    | NGINX 1.27                | Single origin, clean routing                      |
+| DevOps   | Docker Compose            | One-command start, dev/prod parity                |
+
+---
+
+## CONTRIBUTING
+
+```bash
+git checkout -b feat/your-feature
+git commit -m "feat: describe your change"
+git push origin feat/your-feature
+# --> open a Pull Request
+```
+
+---
+
+<div align="center">
+
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║  Built for the 15 million delivery riders of India who earn every          ║
+║  rupee in the rain, the heat, and the dark.                                ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**WorkShield AI** -- DevTrails Hackathon 2026
+
+</div>

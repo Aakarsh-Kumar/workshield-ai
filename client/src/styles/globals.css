@@ -1,0 +1,13 @@
+/*
+ * Component-scoped style tokens.
+ * The main Tailwind globals live in src/app/globals.css (Next.js convention).
+ * Add feature-level CSS custom properties here and import where needed.
+ */
+
+:root {
+  --color-primary:       14 165 233;   /* sky-500  */
+  --color-primary-dark:  2  132 199;   /* sky-600  */
+
+  --radius-card: 0.75rem;
+  --shadow-card: 0 1px 4px rgb(0 0 0 / 0.08);
+}
