@@ -367,6 +367,104 @@ soft-flagged claims with clean history, and full validation catches up when conn
 
 ---
 
+# Adversarial Defense & Anti-Spoofing Strategy
+
+Simple GPS verification is not sufficient for a payout decision. WorkShield AI uses a multi-signal fraud decision layer that scores whether a worker is genuinely stranded in a disruption zone or is artificially simulating presence there.
+
+---
+
+### 1. The Differentiation
+
+The platform differentiates genuine hardship from spoofing by comparing claimed location against behavioral, device, and environmental evidence in the same time window.
+
+A legitimate stranded worker typically shows:
+
+- A believable movement trail into the affected zone before the disruption escalates
+- Deceleration or stoppage patterns that match worsening weather, blocked roads, or safety pauses
+- Real work context such as accepted orders, route progress, or recent active sessions
+- Network degradation patterns consistent with severe weather rather than a clean static device state
+- Corroboration from nearby external signals such as radar intensity, flood alerts, or multiple independent users in the same area
+
+A spoofing actor typically shows:
+
+- GPS jumps without matching accelerometer, gyroscope, or route progression evidence
+- Device motion that suggests the phone is stationary indoors while the reported path is moving outdoors
+- Mock-location, emulator, rooted-device, or developer-setting indicators
+- No recent delivery workflow activity despite claiming exposure to a red-alert zone
+- Coordinated timing patterns where many users trigger similar claims from the same city cluster at nearly the same moment
+
+The AI layer combines anomaly detection, sequence modeling, and graph-based fraud analysis. Instead of asking whether the GPS point is inside a danger zone, it asks whether the full story told by the device, the worker behavior, and the city-wide event data is internally consistent.
+
+---
+
+### 2. The Data
+
+To detect both individual spoofing and coordinated fraud rings, the system analyzes data points beyond raw latitude and longitude.
+
+Device and sensor signals:
+
+- Accelerometer and gyroscope consistency with claimed movement
+- Speed, heading changes, stop-start patterns, and route continuity
+- Barometer, battery drain, and device temperature changes during severe weather exposure
+- OS-level mock-location flags, developer-mode indicators, root or jailbreak status, and emulator fingerprints
+
+Network and location-quality signals:
+
+- Cell tower and Wi-Fi fingerprint consistency
+- GNSS accuracy, satellite count, and timestamp reliability
+- IP geolocation mismatch with reported device location
+- Sudden SIM swaps, device ID churn, or repeated network identity changes
+
+Work and platform context:
+
+- Order acceptance and completion history near the incident window
+- Pickup, drop, and route milestone timestamps
+- App foreground activity, session continuity, and interaction cadence
+- Historical working hours so the system knows whether the worker is normally active at that time
+
+Fraud-ring detection signals:
+
+- Multiple claims firing in synchronized bursts from the same micro-region
+- Shared payment accounts, devices, bank endpoints, or referral links across accounts
+- Repeated claim clusters tied to the same neighborhood, handset model mix, or operating-system build
+- Social-pattern anomalies such as many new users surfacing with identical trigger timing during one weather event
+
+External corroboration signals:
+
+- Radar and hyperlocal weather severity
+- Flood alerts, road closure feeds, and disruption notices
+- Simulated demand collapse and platform-side order scarcity
+- Nearby legitimate mobility slowdowns compared with normal traffic behavior
+
+These features allow the system to identify not only fake coordinates, but also the organized behavior of a syndicate attempting to drain the pool at scale.
+
+---
+
+### 3. The UX Balance
+
+The claim workflow is designed to stop fraud without treating every connectivity failure as suspicious.
+
+The system uses three decision paths:
+
+- Auto-approve when external conditions and worker telemetry strongly align
+- Soft-flag when evidence is incomplete but not clearly fraudulent
+- Hard-block only when there is high-confidence evidence of spoofing or organized abuse
+
+For soft-flagged claims, the platform should not immediately reject the worker. Instead it can:
+
+- Hold the payout briefly for secondary checks
+- Request low-friction evidence already available in-app, such as recent task history or route continuity
+- Use a grace window to wait for delayed telemetry caused by bad weather or network congestion
+- Escalate to manual review only if contradictions remain after passive checks
+
+To avoid unfairly penalizing honest workers, the model prioritizes false-positive reduction in severe weather windows. If a worker has a strong historical pattern of legitimate activity and the only missing signal is temporary connectivity, the system can release a provisional partial payout and complete full validation once the network stabilizes.
+
+This creates a balanced workflow: honest workers are protected from harsh denials during genuine outages, while coordinated spoofing attacks are slowed, investigated, and prevented from triggering instant mass payouts.
+
+---
+
+---
+
 ## API REFERENCE
 
 ### Authentication
