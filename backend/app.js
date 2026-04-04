@@ -6,8 +6,13 @@ const connectDB = require('./utils/db');
 const authRoutes = require('./routes/authRoutes');
 const policyRoutes = require('./routes/policyRoutes');
 const claimRoutes = require('./routes/claimRoutes');
+const team2Routes = require('./routes/team2Routes');
+const { startTeam2Schedulers } = require('./services/team2/schedulerService');
+const { apiLimiter } = require('./middleware/rateLimiters');
+const { auditMutationRequests } = require('./middleware/auditTrail');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ── Database ──────────────────────────────────────────────────────────────────
 connectDB();
@@ -21,6 +26,8 @@ app.use(
 );
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use('/api', apiLimiter);
+app.use(auditMutationRequests);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) =>
@@ -32,6 +39,7 @@ app.get('/api/health', (_req, res) =>
 app.use('/api/auth', authRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/claims', claimRoutes);
+app.use('/api/team2', team2Routes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -49,6 +57,7 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`🚀 WorkShield backend running on port ${PORT}`);
+  startTeam2Schedulers();
 });
 
 module.exports = app;

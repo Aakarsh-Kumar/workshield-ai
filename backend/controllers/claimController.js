@@ -8,6 +8,7 @@ const {
   REASON_CODES,
   SETTLEMENT_STATUS,
 } = require('../constants/decisionContract');
+const { fetchRainfallMm } = require('../services/weatherService');
 
 const resolveActivePolicy = async (policyRef, userId) => {
   const policyLookup = String(policyRef || '').trim();
@@ -32,12 +33,44 @@ const resolveActivePolicy = async (policyRef, userId) => {
  */
 exports.createClaim = async (req, res) => {
   try {
-    const { policyId, triggerType, triggerValue, documents, exclusionCode, eventCategory } = req.body;
+    const {
+      policyId,
+      triggerType,
+      triggerValue,
+      documents,
+      exclusionCode,
+      eventCategory,
+      weatherLookup,
+    } = req.body;
 
-    if (!policyId || !triggerType || triggerValue == null) {
+    if (!policyId || !triggerType) {
       return res.status(400).json({
         success: false,
-        message: 'policyId, triggerType, and triggerValue are required',
+        message: 'policyId and triggerType are required',
+      });
+    }
+
+    let observedTriggerValue = triggerValue;
+    let weatherObservation = null;
+
+    if (
+      observedTriggerValue == null
+      && triggerType === 'rainfall'
+      && weatherLookup?.latitude != null
+      && weatherLookup?.longitude != null
+    ) {
+      weatherObservation = await fetchRainfallMm({
+        latitude: weatherLookup.latitude,
+        longitude: weatherLookup.longitude,
+        observedAt: weatherLookup.observedAt,
+      });
+      observedTriggerValue = weatherObservation.rainfallMm;
+    }
+
+    if (observedTriggerValue == null) {
+      return res.status(400).json({
+        success: false,
+        message: 'triggerValue is required unless rainfall weather lookup is provided',
       });
     }
 
@@ -67,7 +100,7 @@ exports.createClaim = async (req, res) => {
       });
     }
 
-    const triggerEvaluation = evaluateTrigger(policy, triggerType, Number(triggerValue));
+    const triggerEvaluation = evaluateTrigger(policy, triggerType, Number(observedTriggerValue));
     if (!triggerEvaluation.triggered) {
       return res.status(422).json({
         success: false,
@@ -86,7 +119,7 @@ exports.createClaim = async (req, res) => {
       policyId: policy._id,
       userId: req.user.id,
       triggerType,
-      triggerValue: Number(triggerValue),
+      triggerValue: Number(observedTriggerValue),
       claimAmount,
       documents: documents || [],
       status: 'pending',
@@ -102,6 +135,17 @@ exports.createClaim = async (req, res) => {
           observed: triggerEvaluation.observed,
           payoutRatio: triggerEvaluation.payoutRatio,
         },
+        ...(weatherObservation
+          ? {
+            weatherObservation: {
+              source: weatherObservation.source,
+              observedDate: weatherObservation.observedDate,
+              latitude: weatherObservation.latitude,
+              longitude: weatherObservation.longitude,
+              rainfallMm: weatherObservation.rainfallMm,
+            },
+          }
+          : {}),
       },
     });
 
