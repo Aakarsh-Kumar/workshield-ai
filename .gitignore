@@ -1,0 +1,49 @@
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Node / Python build artifacts
+node_modules/
+backend/node_modules/
+client/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+
+# Private ML export assets (do not publish implementation internals)
+workshield_export/
+
+# Large binary artifacts
+*.joblib
+*.pkl
+*.onnx
+*.h5
+*.pt
+*.pth
+
+# Internal repository instruction metadata (local only)
+.github/instructions/
+
+# Internal planning/process notes (local only)
+instructions.md
+predata.md
+SYNTHETIC_DATA_V2_SPEC.md
+TEAM1_EXPORT_INTEGRATION_PLAN.md

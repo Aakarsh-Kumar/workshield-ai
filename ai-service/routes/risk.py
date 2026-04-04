@@ -1,5 +1,8 @@
 from flask import Blueprint, request, jsonify
 
+from services.model_bundle import get_premium_artifact_status, load_premium_artifacts
+from services.premium_inference import predict_weekly_premium
+
 risk_bp = Blueprint('risk', __name__)
 
 # Platform-specific risk multipliers based on Indian delivery market data.
@@ -82,8 +85,15 @@ def predict_premium():
     weekly_deliveries = max(0, min(weekly_deliveries, 200))
     risk_score = max(0.0, min(risk_score, 1.0))
 
-    premium = calculate_premium(weekly_deliveries, platform, risk_score)
+    artifacts = load_premium_artifacts()
+    if artifacts:
+        try:
+            response = predict_weekly_premium(weekly_deliveries, platform, risk_score, artifacts)
+            return jsonify(response)
+        except Exception as exc:
+            print(f'[RiskRoute] Model premium inference failed, using fallback: {exc}')
 
+    premium = calculate_premium(weekly_deliveries, platform, risk_score)
     return jsonify({
         'premium': premium,
         'currency': 'INR',
@@ -93,5 +103,12 @@ def predict_premium():
             'platform': platform,
             'risk_score': risk_score,
             'platform_multiplier': PLATFORM_RISK_MULTIPLIERS.get(platform.lower(), 1.15),
+            'mode': 'heuristic_fallback',
+            'model_version': None,
         },
     })
+
+
+@risk_bp.route('/premium-model-status', methods=['GET'])
+def premium_model_status():
+    return jsonify(get_premium_artifact_status())

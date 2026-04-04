@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from routes.risk import risk_bp
 from routes.fraud import fraud_bp
+from services.model_bundle import get_artifact_status, get_premium_artifact_status
 
 app = Flask(__name__)
 
@@ -16,7 +17,13 @@ app.register_blueprint(fraud_bp)
 @app.route('/health')
 def health():
     """Health probe endpoint — used by Docker and NGINX upstream checks."""
-    return jsonify({'status': 'ok', 'service': 'workshield-ai', 'version': '1.0.0'})
+    return jsonify({
+        'status': 'ok',
+        'service': 'workshield-ai',
+        'version': '1.0.0',
+        'fraud_model': get_artifact_status(),
+        'premium_model': get_premium_artifact_status(),
+    })
 
 
 if __name__ == '__main__':

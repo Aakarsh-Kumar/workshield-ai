@@ -1,5 +1,10 @@
 const Policy = require('../models/Policy');
 const Claim = require('../models/Claim');
+const {
+  REASON_CODES,
+  SETTLEMENT_STATUS,
+  VERDICTS,
+} = require('../constants/decisionContract');
 
 /**
  * evaluateTrigger — checks if an observed event value exceeds the policy's trigger threshold.
@@ -15,7 +20,15 @@ const Claim = require('../models/Claim');
 const evaluateTrigger = (policy, triggerType, triggerValue) => {
   const trigger = policy.triggers.find((t) => t.type === triggerType);
   if (!trigger) {
-    return { triggered: false, payoutRatio: 0, reason: 'Trigger type not covered in policy' };
+    return {
+      triggered: false,
+      payoutRatio: 0,
+      threshold: null,
+      observed: triggerValue,
+      triggerType,
+      reasonCode: REASON_CODES.TRIGGER_NOT_COVERED,
+      reasonDetail: 'Trigger type not covered in policy',
+    };
   }
 
   const triggered = triggerValue >= trigger.threshold;
@@ -25,7 +38,30 @@ const evaluateTrigger = (policy, triggerType, triggerValue) => {
     threshold: trigger.threshold,
     observed: triggerValue,
     triggerType,
+    reasonCode: triggered ? REASON_CODES.CLAIM_FILED : REASON_CODES.TRIGGER_THRESHOLD_NOT_MET,
+    reasonDetail: triggered
+      ? 'Trigger threshold met'
+      : `Trigger threshold not met (observed: ${triggerValue}, threshold: ${trigger.threshold})`,
   };
+};
+
+const checkExclusion = (policy, eventMeta = {}) => {
+  const exclusionCode = String(eventMeta.exclusionCode || eventMeta.eventCategory || '').trim();
+  if (!exclusionCode) {
+    return { hit: false };
+  }
+
+  const policyExclusions = policy.exclusions || [];
+  if (policyExclusions.includes(exclusionCode)) {
+    return {
+      hit: true,
+      exclusionCode,
+      reasonCode: REASON_CODES.POLICY_EXCLUSION_HIT,
+      reasonDetail: `Excluded by policy clause: ${exclusionCode}`,
+    };
+  }
+
+  return { hit: false };
 };
 
 /**
@@ -53,19 +89,41 @@ const calculateLoss = (policy, payoutRatio) => {
  * @param {number} triggerValue
  * @returns {Promise<{ triggered, claim?, evaluation, claimAmount? }>}
  */
-const processTriggerEvent = async (policyId, triggerType, triggerValue) => {
+const processTriggerEvent = async (policyId, triggerType, triggerValue, eventMeta = {}) => {
   const policy = await Policy.findById(policyId).populate('userId');
 
   if (!policy) throw new Error('Policy not found');
   if (policy.status !== 'active') throw new Error(`Policy is ${policy.status}, not active`);
   if (new Date() > policy.endDate) throw new Error('Policy has expired');
 
+  const exclusion = checkExclusion(policy, eventMeta);
+  if (exclusion.hit) {
+    return {
+      triggered: false,
+      verdict: VERDICTS.HARD_BLOCK,
+      reasonCode: exclusion.reasonCode,
+      reasonDetail: exclusion.reasonDetail,
+      settlementStatus: SETTLEMENT_STATUS.HARD_BLOCK,
+      payoutEligibility: false,
+      evaluation: {
+        triggerType,
+        observed: Number(triggerValue),
+        exclusionCode: exclusion.exclusionCode,
+      },
+    };
+  }
+
   const evaluation = evaluateTrigger(policy, triggerType, Number(triggerValue));
 
   if (!evaluation.triggered) {
     return {
       triggered: false,
-      message: `Trigger threshold not met (observed: ${triggerValue}, threshold: ${evaluation.threshold})`,
+      verdict: VERDICTS.AUTO_APPROVE,
+      reasonCode: evaluation.reasonCode,
+      reasonDetail: evaluation.reasonDetail,
+      settlementStatus: SETTLEMENT_STATUS.PENDING,
+      payoutEligibility: false,
+      message: evaluation.reasonDetail,
       evaluation,
     };
   }
@@ -79,9 +137,35 @@ const processTriggerEvent = async (policyId, triggerType, triggerValue) => {
     triggerValue,
     claimAmount,
     status: 'pending',
+    settlementStatus: SETTLEMENT_STATUS.PENDING,
+    reasonCode: REASON_CODES.CLAIM_FILED,
+    reasonDetail: 'Claim created from validated trigger event',
+    payoutEligibility: false,
+    evaluationMeta: {
+      triggerType,
+      triggerValue: Number(triggerValue),
+      threshold: evaluation.threshold,
+      payoutRatio: evaluation.payoutRatio,
+      timestamp: new Date().toISOString(),
+    },
   });
 
-  return { triggered: true, claim, evaluation, claimAmount };
+  return {
+    triggered: true,
+    claim,
+    evaluation,
+    claimAmount,
+    verdict: VERDICTS.AUTO_APPROVE,
+    reasonCode: REASON_CODES.CLAIM_FILED,
+    reasonDetail: 'Trigger validated and claim created for fraud evaluation',
+    settlementStatus: SETTLEMENT_STATUS.PENDING,
+    payoutEligibility: false,
+  };
 };
 
-module.exports = { evaluateTrigger, calculateLoss, processTriggerEvent };
+module.exports = {
+  evaluateTrigger,
+  calculateLoss,
+  checkExclusion,
+  processTriggerEvent,
+};

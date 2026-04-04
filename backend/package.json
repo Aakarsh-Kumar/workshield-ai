@@ -5,7 +5,11 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test": "node --test",
+    "test:unit": "node --test test/unit",
+    "test:integration": "node --test test/integration",
+    "test:contract": "node --test test/contract"
   },
   "dependencies": {
     "axios": "^1.7.2",

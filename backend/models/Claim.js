@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { SETTLEMENT_STATUS } = require('../constants/decisionContract');
 
 /**
  * Claim — filed against an active Policy when a trigger event occurs.
@@ -35,6 +36,25 @@ const ClaimSchema = new mongoose.Schema(
     // AI fraud assessment output
     fraudScore: { type: Number, default: 0, min: 0, max: 1 },
     isFraudulent: { type: Boolean, default: false },
+    fraudVerdict: {
+      type: String,
+      enum: ['auto_approve', 'soft_flag', 'hard_block'],
+      default: 'auto_approve',
+    },
+    fraudSignals: [{ type: String }],
+    fraudModelVersion: { type: String },
+
+    reasonCode: { type: String },
+    reasonDetail: { type: String },
+    settlementStatus: {
+      type: String,
+      enum: Object.values(SETTLEMENT_STATUS),
+      default: SETTLEMENT_STATUS.PENDING,
+      index: true,
+    },
+    payoutEligibility: { type: Boolean, default: false },
+    evaluationMeta: { type: mongoose.Schema.Types.Mixed },
+    responseContractVersion: { type: String, default: 'v1' },
 
     // Supporting documents (S3 keys or local paths)
     documents: [{ type: String }],

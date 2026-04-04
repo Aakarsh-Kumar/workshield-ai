@@ -1,6 +1,10 @@
 const axios = require('axios');
 const Policy = require('../models/Policy');
 const User = require('../models/User');
+const {
+  DEFAULT_POLICY_EXCLUSIONS,
+  DEFAULT_UNDERWRITING_GUIDELINES,
+} = require('../constants/policyCompliance');
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:5001';
 
@@ -83,6 +87,10 @@ const createPolicy = async (userId, { type = 'weekly', coverageAmount, triggerCo
     aiRiskScore: user.riskScore,
     weeklyDeliveriesAtIssuance: user.weeklyDeliveries,
     platform: user.platform,
+    exclusions: DEFAULT_POLICY_EXCLUSIONS,
+    termsVersion: '1.0',
+    regulatoryReference: 'IRDAI_REFERENCE_PENDING',
+    underwritingGuidelines: DEFAULT_UNDERWRITING_GUIDELINES,
   });
 
   return policy;
