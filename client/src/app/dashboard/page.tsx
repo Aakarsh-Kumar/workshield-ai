@@ -81,7 +81,10 @@ export default function DashboardPage() {
     }));
   }, [claims]);
 
-  const recentPayouts = claims.filter((claim) => (claim.settlementStatus || claim.status) === 'paid').slice(0, 4);
+  const recentClaims = useMemo(
+    () => [...claims].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
+    [claims],
+  );
 
   const handleLogout = () => {
     clearToken();
@@ -185,20 +188,20 @@ export default function DashboardPage() {
 
           <Card className="ws-card border-0">
             <CardContent className="p-4">
-              <h2 className="text-base font-semibold text-slate-900">Recent payouts</h2>
+              <h2 className="text-base font-semibold text-slate-900">Recent claims</h2>
 
               {loading ? (
                 <div className="mt-3 space-y-2">
                   <Skeleton className="h-14 w-full rounded-xl" />
                   <Skeleton className="h-14 w-full rounded-xl" />
                 </div>
-              ) : recentPayouts.length === 0 ? (
+              ) : recentClaims.length === 0 ? (
                 <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-5 text-sm text-slate-600">
-                  No payout yet. Paid claims will show here.
+                  No claims yet. New claims will show here.
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">
-                  {recentPayouts.map((claim) => (
+                  {recentClaims.map((claim) => (
                     <article key={claim._id} className="rounded-xl border border-slate-200 bg-white p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-slate-900">
@@ -206,6 +209,9 @@ export default function DashboardPage() {
                         </p>
                         <StatusChip status={claim.settlementStatus || claim.status} />
                       </div>
+                      <p className="mt-1 text-xs text-slate-700">
+                        {claim.reasonDetail || claim.remarks || 'Claim received and being processed.'}
+                      </p>
                       <p className="mt-1 text-xs text-slate-600">
                         INR {Number(claim.approvedAmount || claim.claimAmount || 0).toLocaleString('en-IN')} · {formatRelativeTime(claim.createdAt)}
                       </p>
