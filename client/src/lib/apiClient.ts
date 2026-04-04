@@ -46,7 +46,17 @@ export interface Claim {
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'paid';
   fraudScore: number;
   isFraudulent: boolean;
+  fraudVerdict?: 'auto_approve' | 'soft_flag' | 'hard_block';
+  fraudSignals?: string[];
+  fraudModelVersion?: string;
+  reasonCode?: string;
+  reasonDetail?: string;
+  settlementStatus?: 'pending' | 'approved' | 'soft_flag' | 'hard_block' | 'paid';
+  payoutEligibility?: boolean;
+  evaluationMeta?: Record<string, unknown>;
+  responseContractVersion?: string;
   remarks?: string;
+  processedAt?: string;
   createdAt: string;
 }
 
@@ -54,6 +64,65 @@ export interface PremiumPrediction {
   premium: number;
   currency: string;
   breakdown: Record<string, unknown>;
+}
+
+export interface Team2OpsSummary {
+  generatedAt: string;
+  settlement: Record<string, number>;
+  verdict: Record<string, number>;
+  payoutAttempts: Record<string, number>;
+  manualReviewQueueCount: number;
+}
+
+export interface Team2SchedulerStatus {
+  enabled: boolean;
+  started: boolean;
+  startedAt: string | null;
+  intervals: {
+    payoutCycleMs: number;
+    healthCheckMs: number;
+    reconciliationMs: number;
+    batchLimit: number;
+  };
+}
+
+export interface Team2PayoutAttempt {
+  _id: string;
+  claimId?: {
+    _id?: string;
+    claimAmount?: number;
+    approvedAmount?: number;
+    settlementStatus?: string;
+    payoutEligibility?: boolean;
+    reasonCode?: string;
+    reasonDetail?: string;
+  };
+  idempotencyKey: string;
+  status: string;
+  attemptCount: number;
+  providerReference?: string;
+  providerMode?: string;
+  nextRetryAt?: string;
+  updatedAt: string;
+  lastError?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+export interface Team2AuditLog {
+  _id: string;
+  actorUserId?: string | null;
+  actorRole: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string | null;
+  method: string;
+  path: string;
+  statusCode: number;
+  success: boolean;
+  latencyMs?: number;
+  createdAt: string;
 }
 
 interface ApiResponse<T> {
@@ -183,6 +252,68 @@ const apiClient = {
         body: JSON.stringify({ weekly_deliveries: weeklyDeliveries, platform, risk_score: riskScore }),
       },
     ),
+
+  // ── Team 2 Ops (admin only) ─────────────────────────────────────────────
+
+  getTeam2OpsSummary: () =>
+    request<{ success: boolean; summary: Team2OpsSummary }>(`${API_BASE}/team2/ops/summary`),
+
+  getTeam2SchedulerStatus: () =>
+    request<{ success: boolean; scheduler: Team2SchedulerStatus }>(`${API_BASE}/team2/ops/scheduler`),
+
+  runTeam2PayoutCycle: (limit = 50) =>
+    request<{ success: boolean; scanned: number; summary: Record<string, number> }>(
+      `${API_BASE}/team2/payouts/run`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ limit }),
+      },
+    ),
+
+  runTeam2Reconciliation: () =>
+    request<{
+      success: boolean;
+      summary: {
+        generatedAt: string;
+        staleProviderSuccess: number;
+        retryOverdue: number;
+        conflictCount: number;
+        failedTerminal24h: number;
+      };
+    }>(`${API_BASE}/team2/ops/reconcile`, { method: 'POST', body: JSON.stringify({}) }),
+
+  getTeam2ReviewQueue: (limit = 50) =>
+    request<{ success: boolean; queue: Claim[] }>(`${API_BASE}/team2/review-queue?limit=${limit}`),
+
+  decideTeam2Review: (
+    claimId: string,
+    payload: { action: 'approve' | 'reject'; approvedAmount?: number; remarks?: string },
+  ) =>
+    request<{ success: boolean; claim: Claim }>(
+      `${API_BASE}/team2/review/${claimId}/decision`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  getTeam2PayoutAttempts: (status?: string, limit = 50) => {
+    const query = new URLSearchParams();
+    if (status) query.set('status', status);
+    query.set('limit', String(limit));
+    return request<{ success: boolean; attempts: Team2PayoutAttempt[] }>(
+      `${API_BASE}/team2/payouts/attempts?${query.toString()}`,
+    );
+  },
+
+  getTeam2AuditLogs: (limit = 50, action?: string) => {
+    const query = new URLSearchParams();
+    query.set('limit', String(limit));
+    if (action) query.set('action', action);
+    return request<{ success: boolean; logs: Team2AuditLog[] }>(
+      `${API_BASE}/team2/ops/audit-logs?${query.toString()}`,
+    );
+  },
 };
 
 export default apiClient;

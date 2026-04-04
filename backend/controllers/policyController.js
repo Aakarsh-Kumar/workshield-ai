@@ -1,6 +1,7 @@
 const { createPolicy, getPremiumPrediction } = require('../services/policyService');
 const { processTriggerEvent } = require('../services/triggerService');
 const Policy = require('../models/Policy');
+const { fetchRainfallMm } = require('../services/weatherService');
 
 /**
  * POST /api/policies
@@ -101,13 +102,40 @@ exports.getQuote = async (req, res) => {
  */
 exports.fireTrigger = async (req, res) => {
   try {
-    const { triggerType, triggerValue, exclusionCode, eventCategory } = req.body;
+    const { triggerType, triggerValue, exclusionCode, eventCategory, weatherLookup } = req.body;
 
-    if (!triggerType || triggerValue == null) {
-      return res.status(400).json({ success: false, message: 'triggerType and triggerValue are required' });
+    if (!triggerType) {
+      return res.status(400).json({ success: false, message: 'triggerType is required' });
     }
 
-    const result = await processTriggerEvent(req.params.id, triggerType, Number(triggerValue), {
+    const policy = await Policy.findOne({ _id: req.params.id, userId: req.user.id }).lean();
+    if (!policy) {
+      return res.status(404).json({ success: false, message: 'Policy not found for current user' });
+    }
+
+    let observedTriggerValue = triggerValue;
+    if (
+      observedTriggerValue == null
+      && triggerType === 'rainfall'
+      && weatherLookup?.latitude != null
+      && weatherLookup?.longitude != null
+    ) {
+      const weather = await fetchRainfallMm({
+        latitude: weatherLookup.latitude,
+        longitude: weatherLookup.longitude,
+        observedAt: weatherLookup.observedAt,
+      });
+      observedTriggerValue = weather.rainfallMm;
+    }
+
+    if (observedTriggerValue == null) {
+      return res.status(400).json({
+        success: false,
+        message: 'triggerValue is required unless rainfall weather lookup is provided',
+      });
+    }
+
+    const result = await processTriggerEvent(req.params.id, triggerType, Number(observedTriggerValue), {
       exclusionCode,
       eventCategory,
     });

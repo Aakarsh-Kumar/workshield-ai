@@ -2,7 +2,16 @@
 // Import from here instead of re-defining types across components.
 // Re-exported from apiClient so there is a single source of truth.
 
-export type { User, Policy, Claim, PremiumPrediction } from '@/lib/apiClient';
+export type {
+  User,
+  Policy,
+  Claim,
+  PremiumPrediction,
+  Team2OpsSummary,
+  Team2SchedulerStatus,
+  Team2PayoutAttempt,
+  Team2AuditLog,
+} from '@/lib/apiClient';
 
 // ── UI-level types ─────────────────────────────────────────────────────────
 
