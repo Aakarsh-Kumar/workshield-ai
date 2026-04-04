@@ -98,6 +98,14 @@ export default function LoginPage() {
                 {mode === 'login' ? 'Use email and password.' : 'Only basic details needed.'}
               </p>
 
+              {mode === 'login' && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <p className="font-medium">Admin credentials</p>
+                  <p>Email: ak1290@srmist.edu.in</p>
+                  <p>Password: Password@1</p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                 {mode === 'register' && (
                   <Field label="Name">

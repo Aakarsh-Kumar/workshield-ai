@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  backend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.workshield-api.rule=Host(`workshield.aakarsh.xyz`)"
+      - "traefik.http.routers.workshield-api.entrypoints=websecure"
+      - "traefik.http.routers.workshield-api.tls.certresolver=myresolver"
+      - "traefik.http.routers.workshield-api.middlewares=api-strip"
+      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.workshield-api.loadbalancer.server.port=4000"
+
+  ai-service:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.workshield-ai.rule=Host(`workshield.aakarsh.xyz`) && PathPrefix(`/ai`)"
+      - "traefik.http.routers.workshield-ai.entrypoints=websecure"
+      - "traefik.http.routers.workshield-ai.tls.certresolver=myresolver"
+      - "traefik.http.routers.workshield-ai.middlewares=ai-strip"
+      - "traefik.http.middlewares.ai-strip.stripprefix.prefixes=/ai"
+      - "traefik.http.services.workshield-ai.loadbalancer.server.port=5001"
+
+  client:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.workshield-frontend.rule=Host(`workshield.aakarsh.xyz`)"
+      - "traefik.http.routers.workshield-frontend.entrypoints=websecure"
+      - "traefik.http.routers.workshield-frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.workshield-frontend.loadbalancer.server.port=3000"
