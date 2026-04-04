@@ -7,8 +7,6 @@ services:
       - "traefik.http.routers.workshield-api.rule=Host(`workshield.aakarsh.xyz`) && PathPrefix(`/api`)"
       - "traefik.http.routers.workshield-api.entrypoints=websecure"
       - "traefik.http.routers.workshield-api.tls.certresolver=myresolver"
-      - "traefik.http.routers.workshield-api.middlewares=api-strip"
-      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
       - "traefik.http.services.workshield-api.loadbalancer.server.port=4000"
 
   ai-service:
