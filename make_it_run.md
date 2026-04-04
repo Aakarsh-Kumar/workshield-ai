@@ -77,3 +77,37 @@ Use this to also remove volumes (resets local Mongo data):
 ```powershell
 docker compose down -v
 ```
+
+## 9) If a developer still sees the old dashboard
+
+Run this full reset sequence from repo root:
+
+1. Sync code and model artifacts:
+
+git checkout main
+git pull origin main
+git lfs install
+git lfs pull
+
+2. Rebuild from clean containers/images:
+
+docker compose down -v --remove-orphans
+docker compose build --no-cache client backend ai-service
+docker compose up -d
+
+3. Verify runtime:
+
+- App: http://localhost/dashboard
+- Backend health: http://localhost/api/health
+- AI premium status should show model mode: http://localhost/ai/premium-model-status
+
+4. Browser refresh steps:
+
+- Hard refresh the page (Ctrl+Shift+R)
+- If still stale, clear site data for localhost and open in an incognito window
+
+5. Quick version check:
+
+git rev-parse --short HEAD
+
+Expected current main commit (at time of this guide update): 927187b
