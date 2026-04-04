@@ -134,6 +134,64 @@ bun dev                            # starts on :3000, proxies /api and /ai
 
 ---
 
+## TEAM 1 INTEGRATION CONTRACT (FOR TEAM 2)
+
+WorkShield exposes a stable fraud and settlement contract for Team 2 orchestration.
+
+Integration behavior:
+1. AI service attempts model-backed scoring when provisioned artifacts are available in runtime.
+2. If artifacts are unavailable, service falls back to deterministic heuristic scoring.
+3. Response contract fields remain stable across both paths.
+
+Operational endpoints for Team 2:
+1. `GET /health` returns fraud model mode and version.
+2. `GET /fraud-model-status` returns model availability and active mode.
+3. `GET /premium-model-status` returns premium model mode and artifact status.
+4. `POST /fraud-check` returns both backward-compatible and Team 2-friendly fields:
+  - `fraud_score`, `is_fraudulent`, `recommendation`
+  - `verdict`, `signals`, `model_version`, `evaluation_meta`
+  - `reasonCode`, `reasonDetail`, `fraudScore`
+  - `settlementStatus`, `payoutEligibility`, `evaluationMeta`, `responseContractVersion`
+5. `POST /predict` is model-backed for premium inference and returns:
+  - `premium`, `currency`
+  - `breakdown.mode` (`model` or fallback)
+  - `breakdown.model_version`, `breakdown.predicted_risk_score`
+6. `PATCH /api/claims/:id/paid` marks payout completion and enforces `approved -> paid` transition.
+
+Reason code set (current):
+1. `FRAUD_AUTO_APPROVE`
+2. `FRAUD_SOFT_FLAG`
+3. `FRAUD_HARD_BLOCK`
+4. `POLICY_EXCLUSION_HIT`
+5. `TRIGGER_THRESHOLD_NOT_MET`
+6. `INVALID_TRANSITION`
+
+Settlement transition contract (Team 2 consumed):
+1. `pending -> approved`
+2. `pending -> soft_flag`
+3. `pending -> hard_block`
+4. `approved -> paid`
+5. Invalid transition returns structured error with `reasonCode=INVALID_TRANSITION`
+
+Fraud score policy (balanced mode):
+1. Runtime verdict buckets are fixed policy thresholds:
+  - `auto_approve`: score < 0.30
+  - `soft_flag`: 0.30 <= score < 0.70
+  - `hard_block`: score >= 0.70
+2. Runtime scoring remains normalized in [0, 1].
+
+Current premium path status:
+1. Fraud inference is model-backed (`/fraud-check`).
+2. Premium inference is model-backed (`/predict`) using `lgb_weekly_premium` with deterministic feature synthesis and heuristic fallback safety.
+
+CI automation:
+1. GitHub Actions workflow `backend-tests` runs unit, contract, and integration tests on push and pull_request.
+
+Team 1 handoff reference:
+1. Full Team 2 contract and transition guide: `TEAM1_TEAM2_HANDOFF.md`
+
+---
+
 ## ENVIRONMENT VARIABLES
 
 ```bash

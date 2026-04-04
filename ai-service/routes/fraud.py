@@ -1,4 +1,9 @@
+from datetime import datetime, timezone
+
 from flask import Blueprint, request, jsonify
+
+from services.fraud_inference import score_claim
+from services.model_bundle import get_artifact_status, load_fraud_artifacts
 
 fraud_bp = Blueprint('fraud', __name__)
 
@@ -9,6 +14,61 @@ TRIGGER_THRESHOLDS = {
     'vehicle_accident': 1,
     'hospitalization': 1,
 }
+
+VERDICT_REASON_CODES = {
+    'auto_approve': 'FRAUD_AUTO_APPROVE',
+    'soft_flag': 'FRAUD_SOFT_FLAG',
+    'hard_block': 'FRAUD_HARD_BLOCK',
+}
+
+
+def _settlement_status_from_verdict(verdict: str) -> str:
+    if verdict == 'hard_block':
+        return 'hard_block'
+    if verdict == 'soft_flag':
+        return 'soft_flag'
+    return 'approved'
+
+
+def _contract_reason_detail(verdict: str, signals: list[str]) -> str:
+    if verdict == 'hard_block':
+        return 'High fraud risk; claim blocked for payout.'
+    if verdict == 'soft_flag':
+        return 'Medium fraud risk; manual review required before payout.'
+    if signals:
+        return f'Auto-approved with monitor signals: {", ".join(signals)}'
+    return 'Auto-approved with no high-risk fraud indicators.'
+
+
+def _attach_contract_fields(response: dict) -> dict:
+    verdict = str(response.get('verdict', 'auto_approve'))
+    fraud_score = float(response.get('fraud_score', 0.0))
+    signals = response.get('signals') if isinstance(response.get('signals'), list) else []
+    model_version = str(response.get('model_version', 'unknown'))
+
+    reason_code = VERDICT_REASON_CODES.get(verdict, 'FRAUD_AUTO_APPROVE')
+    reason_detail = _contract_reason_detail(verdict, signals)
+    settlement_status = _settlement_status_from_verdict(verdict)
+    payout_eligibility = settlement_status == 'approved'
+
+    evaluation_meta = response.get('evaluation_meta', {})
+    if not isinstance(evaluation_meta, dict):
+        evaluation_meta = {}
+
+    evaluation_meta.setdefault('modelVersion', model_version)
+    evaluation_meta.setdefault('ruleHits', signals)
+    evaluation_meta.setdefault('timestamp', datetime.now(timezone.utc).isoformat())
+
+    response['reasonCode'] = reason_code
+    response['reasonDetail'] = reason_detail
+    response['fraudScore'] = fraud_score
+    response['settlementStatus'] = settlement_status
+    response['payoutEligibility'] = payout_eligibility
+    response['evaluationMeta'] = evaluation_meta
+    response['responseContractVersion'] = 'v1'
+    response['evaluation_meta'] = evaluation_meta
+
+    return response
 
 
 def compute_fraud_score(claim: dict) -> tuple[float, list[str]]:
@@ -66,6 +126,39 @@ def compute_fraud_score(claim: dict) -> tuple[float, list[str]]:
     return round(min(score, 1.0), 4), signals
 
 
+def _fallback_response(claim: dict, error: str | None = None) -> dict:
+    fraud_score, signals = compute_fraud_score(claim)
+
+    if fraud_score >= 0.70:
+        verdict = 'hard_block'
+        recommendation = 'REJECT'
+    elif fraud_score >= 0.30:
+        verdict = 'soft_flag'
+        recommendation = 'FLAG_FOR_REVIEW'
+    else:
+        verdict = 'auto_approve'
+        recommendation = 'AUTO_APPROVE'
+
+    return _attach_contract_fields({
+        'fraud_score': fraud_score,
+        'is_fraudulent': verdict == 'hard_block',
+        'verdict': verdict,
+        'signals': signals,
+        'recommendation': recommendation,
+        'model_version': 'heuristic-fallback',
+        'evaluation_meta': {
+            'mode': 'heuristic_fallback',
+            'fallback_error': error,
+            'thresholds': {'auto_approve_lt': 0.30, 'soft_flag_lt': 0.70},
+        },
+    })
+
+
+@fraud_bp.route('/fraud-model-status', methods=['GET'])
+def fraud_model_status():
+    return jsonify(get_artifact_status())
+
+
 @fraud_bp.route('/fraud-check', methods=['POST'])
 def fraud_check():
     """
@@ -93,20 +186,16 @@ def fraud_check():
     """
     claim = request.get_json(force=True) or {}
 
-    fraud_score, signals = compute_fraud_score(claim)
-    is_fraudulent = fraud_score >= 0.50
-
-    if fraud_score >= 0.50:
-        recommendation = 'REJECT'
-    elif fraud_score >= 0.30:
-        recommendation = 'FLAG_FOR_REVIEW'
+    artifacts = load_fraud_artifacts()
+    if artifacts:
+        try:
+            response = score_claim(claim, artifacts)
+        except Exception as exc:
+            print(f'[FraudRoute] Model scoring failed, using fallback: {exc}')
+            response = _fallback_response(claim, str(exc))
     else:
-        recommendation = 'AUTO_APPROVE'
+        response = _fallback_response(claim, 'model_artifacts_unavailable')
 
-    return jsonify({
-        'fraud_score':    fraud_score,
-        'is_fraudulent':  is_fraudulent,
-        'signals':        signals,
-        'recommendation': recommendation,
-        'claim_id':       claim.get('claim_id'),
-    })
+    response = _attach_contract_fields(response)
+    response['claim_id'] = claim.get('claim_id')
+    return jsonify(response)

@@ -101,13 +101,16 @@ exports.getQuote = async (req, res) => {
  */
 exports.fireTrigger = async (req, res) => {
   try {
-    const { triggerType, triggerValue } = req.body;
+    const { triggerType, triggerValue, exclusionCode, eventCategory } = req.body;
 
     if (!triggerType || triggerValue == null) {
       return res.status(400).json({ success: false, message: 'triggerType and triggerValue are required' });
     }
 
-    const result = await processTriggerEvent(req.params.id, triggerType, Number(triggerValue));
+    const result = await processTriggerEvent(req.params.id, triggerType, Number(triggerValue), {
+      exclusionCode,
+      eventCategory,
+    });
     res.json({ success: true, result });
   } catch (err) {
     console.error('fireTrigger error:', err);

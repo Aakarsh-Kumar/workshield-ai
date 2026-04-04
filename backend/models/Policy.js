@@ -1,4 +1,9 @@
 const mongoose = require('mongoose');
+const {
+  POLICY_EXCLUSION_CODES,
+  DEFAULT_POLICY_EXCLUSIONS,
+  DEFAULT_UNDERWRITING_GUIDELINES,
+} = require('../constants/policyCompliance');
 
 /**
  * Policy — parametric insurance policy for a gig worker.
@@ -46,6 +51,31 @@ const PolicySchema = new mongoose.Schema(
         payoutRatio: { type: Number, min: 0, max: 1 },
       },
     ],
+
+    exclusions: {
+      type: [String],
+      enum: POLICY_EXCLUSION_CODES,
+      default: DEFAULT_POLICY_EXCLUSIONS,
+    },
+    termsVersion: { type: String, default: '1.0' },
+    regulatoryReference: {
+      type: String,
+      default: 'IRDAI_REFERENCE_PENDING',
+    },
+    underwritingGuidelines: {
+      minCoverageAmount: {
+        type: Number,
+        default: DEFAULT_UNDERWRITING_GUIDELINES.minCoverageAmount,
+      },
+      maxCoverageAmount: {
+        type: Number,
+        default: DEFAULT_UNDERWRITING_GUIDELINES.maxCoverageAmount,
+      },
+      maxClaimsPerPolicy: {
+        type: Number,
+        default: DEFAULT_UNDERWRITING_GUIDELINES.maxClaimsPerPolicy,
+      },
+    },
 
     // Snapshot of AI-scored risk at policy issuance
     aiRiskScore: { type: Number, default: 0, min: 0, max: 1 },

@@ -76,10 +76,23 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     },
   });
 
-  const data = await res.json();
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
 
   if (!res.ok) {
-    throw new Error((data as ApiResponse<unknown>).message ?? `Request failed: ${res.status}`);
+    const payload = data as Record<string, unknown> | null;
+    const reasonDetail = payload?.reasonDetail;
+    const reasonCode = payload?.reasonCode;
+    const message = payload?.message
+      ?? (typeof reasonDetail === 'string' ? reasonDetail : undefined)
+      ?? (typeof reasonCode === 'string' ? `Request blocked: ${reasonCode}` : undefined)
+      ?? `Request failed: ${res.status}`;
+
+    throw new Error(message as string);
   }
 
   return data as T;

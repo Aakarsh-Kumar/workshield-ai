@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import apiClient from '@/lib/apiClient';
-import { useAppStore } from '@/store';
 import type { TriggerType } from '@/types';
 
 const TRIGGER_TYPES: Array<{
@@ -24,7 +24,6 @@ const TRIGGER_TYPES: Array<{
 
 export default function NewClaimPage() {
   const router = useRouter();
-  const currentUser = useAppStore((s) => s.currentUser);
 
   const [form, setForm] = useState({
     policyId: '',
@@ -33,6 +32,16 @@ export default function NewClaimPage() {
     description: '',
   });
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const query = new URLSearchParams(window.location.search);
+    const policyIdFromQuery = query.get('policyId');
+    if (policyIdFromQuery && !form.policyId) {
+      setForm((p) => ({ ...p, policyId: policyIdFromQuery }));
+    }
+  }, [form.policyId]);
 
   const currentTrigger = TRIGGER_TYPES.find((t) => t.value === form.triggerType)!;
 
@@ -81,10 +90,10 @@ export default function NewClaimPage() {
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6 space-y-3">
               <div>
-                <label className="text-sm font-semibold text-gray-900 block mb-1">Policy ID</label>
-                <p className="text-xs text-gray-400 mb-2">Find this on your dashboard under My Policies</p>
+                <label className="text-sm font-semibold text-gray-900 block mb-1">Policy ID or Policy Number</label>
+                <p className="text-xs text-gray-400 mb-2">Use Mongo ID or policy number (WSP-...) from dashboard</p>
                 <Input
-                  placeholder="e.g. 6848ab3c1f2d4e..."
+                  placeholder="e.g. 6848ab3c1f2d4e... or WSP-..."
                   value={form.policyId}
                   onChange={(e) => setForm((p) => ({ ...p, policyId: e.target.value }))}
                   required
@@ -169,142 +178,5 @@ export default function NewClaimPage() {
         </form>
       </main>
     </div>
-  );
-}
-
-const TRIGGER_TYPES: Array<{ value: TriggerType; label: string; unit: string }> = [
-  { value: 'rainfall', label: 'Heavy Rainfall', unit: 'mm' },
-  { value: 'vehicle_accident', label: 'Vehicle Accident', unit: 'severity (1=minor, 3=major)' },
-  { value: 'platform_outage', label: 'Platform Outage', unit: 'hours' },
-  { value: 'hospitalization', label: 'Hospitalization', unit: 'days admitted' },
-];
-
-export default function NewClaimPage() {
-  const router = useRouter();
-
-  const [form, setForm] = useState({
-    policyId: '',
-    triggerType: 'rainfall' as TriggerType,
-    triggerValue: '',
-    description: '',
-  });
-
-  const [submitting, setSubmitting] = useState(false);
-
-  const currentTrigger = TRIGGER_TYPES.find((t) => t.value === form.triggerType)!;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!form.policyId.trim()) {
-      toast.error('Policy ID is required');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const res = await apiClient.createClaim({
-        policyId: form.policyId.trim(),
-        triggerType: form.triggerType,
-        triggerValue: Number(form.triggerValue),
-      });
-      toast.success(`Claim filed — ID: ${res.claim._id}. Fraud check running…`);
-      router.push('/dashboard');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to file claim');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <main className="mx-auto max-w-lg space-y-6 p-4">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="text-sm text-sky-600 hover:underline"
-        >
-          ← Back
-        </button>
-        <h1 className="text-xl font-bold">File a Claim</h1>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <p className="text-sm text-muted-foreground">
-            Report a trigger event to claim your parametric payout.
-            No paperwork — payout is automatic once the event is verified.
-          </p>
-        </CardHeader>
-
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Policy ID</label>
-              <Input
-                placeholder="MongoDB ObjectId from your active policy"
-                value={form.policyId}
-                onChange={(e) => setForm((p) => ({ ...p, policyId: e.target.value }))}
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Trigger event</label>
-              <Select
-                value={form.triggerType}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, triggerType: v as TriggerType, triggerValue: '' }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRIGGER_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">
-                Observed value ({currentTrigger.unit})
-              </label>
-              <Input
-                type="number"
-                min={0}
-                placeholder={`e.g. ${form.triggerType === 'rainfall' ? '60' : '5'}`}
-                value={form.triggerValue}
-                onChange={(e) => setForm((p) => ({ ...p, triggerValue: e.target.value }))}
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Additional details (optional)</label>
-              <Textarea
-                placeholder="Any additional context about the event…"
-                value={form.description}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                rows={3}
-              />
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-sky-500 hover:bg-sky-600"
-              disabled={submitting}
-            >
-              {submitting ? 'Submitting…' : 'Submit Claim'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
   );
 }

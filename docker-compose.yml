@@ -45,6 +45,10 @@ services:
       dockerfile: Dockerfile
     container_name: workshield-ai
     restart: unless-stopped
+    environment:
+      WORKSHIELD_EXPORT_ROOT: /ml-export
+    volumes:
+      - ./workshield_export:/ml-export:ro
     networks:
       - workshield-net
 

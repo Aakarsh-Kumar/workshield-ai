@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => router.push('/claims/new')}
+                  onClick={() => router.push(`/claims/new?policyId=${activePolicy._id}`)}
                   className="bg-white text-sky-600 hover:bg-sky-50 font-semibold text-xs"
                 >
                   File a Claim
@@ -226,7 +226,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-gray-900">Recent Claims</h2>
             {activePolicy && (
-              <Button variant="outline" size="sm" onClick={() => router.push('/claims/new')}
+              <Button variant="outline" size="sm" onClick={() => router.push(`/claims/new?policyId=${activePolicy._id}`)}
                 className="text-xs border-sky-200 text-sky-600 hover:bg-sky-50">
                 + File Claim
               </Button>
