@@ -28,8 +28,12 @@ venv/
 *.tmp
 *.temp
 
-# Private ML export assets (do not publish implementation internals)
-workshield_export/
+# ML export assets
+# Keep only model artifacts in git (via Git LFS); ignore heavy generation assets.
+workshield_export/data/
+workshield_export/notebooks/
+workshield_export/scripts/
+workshield_export/docs/
 
 # Large binary artifacts
 *.joblib
@@ -38,6 +42,11 @@ workshield_export/
 *.h5
 *.pt
 *.pth
+
+# Allow model artifacts required for model-backed runtime and CI contract tests
+!workshield_export/models/
+!workshield_export/models/*.joblib
+!workshield_export/models/model_registry_v2.json
 
 # Internal repository instruction metadata (local only)
 .github/instructions/
