@@ -15,7 +15,6 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ── Database ──────────────────────────────────────────────────────────────────
-connectDB();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(
@@ -55,9 +54,15 @@ app.use((err, _req, res, _next) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`🚀 WorkShield backend running on port ${PORT}`);
-  startTeam2Schedulers();
-});
+
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`🚀 WorkShield backend running on port ${PORT}`);
+    startTeam2Schedulers();
+  });
+};
+
+startServer();
 
 module.exports = app;
