@@ -4,7 +4,7 @@ services:
   backend:
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.workshield-api.rule=Host(`workshield.aakarsh.xyz`)"
+      - "traefik.http.routers.workshield-api.rule=Host(`workshield.aakarsh.xyz`) && PathPrefix(`/api`)"
       - "traefik.http.routers.workshield-api.entrypoints=websecure"
       - "traefik.http.routers.workshield-api.tls.certresolver=myresolver"
       - "traefik.http.routers.workshield-api.middlewares=api-strip"
