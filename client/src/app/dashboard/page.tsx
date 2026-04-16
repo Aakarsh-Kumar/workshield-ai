@@ -12,6 +12,7 @@ import { useAppStore } from '@/store';
 import { formatRelativeTime } from '@/utils';
 import { BarList } from '@/components/workshield/bar-list';
 import { StatusChip } from '@/components/workshield/status-chip';
+import { ChatSupport } from '@/components/workshield/chat-support';
 
 const EVENT_VIEW: Record<string, { label: string; icon: string; barClass: string; trackClass: string }> = {
   rainfall: { label: 'Rain', icon: '🌧️', barClass: 'bg-sky-500', trackClass: 'bg-sky-100' },
@@ -223,6 +224,8 @@ export default function DashboardPage() {
           </Card>
         </section>
       </main>
+
+      <ChatSupport />
     </div>
   );
 }
