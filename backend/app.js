@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const policyRoutes = require('./routes/policyRoutes');
 const claimRoutes = require('./routes/claimRoutes');
 const team2Routes = require('./routes/team2Routes');
+const chatRoutes = require('./routes/chatRoutes');
 const { startTeam2Schedulers } = require('./services/team2/schedulerService');
 const { apiLimiter } = require('./middleware/rateLimiters');
 const { auditMutationRequests } = require('./middleware/auditTrail');
@@ -39,6 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/team2', team2Routes);
+app.use('/api/chat', chatRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

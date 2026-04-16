@@ -110,6 +110,12 @@ export interface Team2PayoutAttempt {
   };
 }
 
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+  timestamp: string;
+}
+
 export interface Team2AuditLog {
   _id: string;
   actorUserId?: string | null;
@@ -314,6 +320,17 @@ const apiClient = {
       `${API_BASE}/team2/ops/audit-logs?${query.toString()}`,
     );
   },
+
+  // ── Chat ─────────────────────────────────────────────────────────────────
+
+  getChatHistory: () =>
+    request<{ success: boolean; messages: ChatMessage[] }>(`${API_BASE}/chat/history`),
+
+  sendMessage: (message: string) =>
+    request<{ success: boolean; reply: string }>(
+      `${API_BASE}/chat/message`,
+      { method: 'POST', body: JSON.stringify({ message }) },
+    ),
 };
 
 export default apiClient;
