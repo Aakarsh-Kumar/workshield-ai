@@ -91,6 +91,8 @@ const createPolicy = async (userId, { type = 'weekly', coverageAmount, triggerCo
     termsVersion: '1.0',
     regulatoryReference: 'IRDAI_REFERENCE_PENDING',
     underwritingGuidelines: DEFAULT_UNDERWRITING_GUIDELINES,
+
+    status: "active" // 🔥 ADD THIS
   });
 
   return policy;

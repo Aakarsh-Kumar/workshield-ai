@@ -25,73 +25,100 @@ export default function DashboardPage() {
   const router = useRouter();
   const { currentUser, logout } = useAppStore();
 
-  const [loading, setLoading] = useState(true);
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [claims, setClaims] = useState<Claim[]>([]);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace('/login');
-      return;
-    }
-
-    const load = async () => {
-      try {
-        const [policyRes, claimRes] = await Promise.all([apiClient.getPolicies(), apiClient.getClaims()]);
-        setPolicies(policyRes.policies);
-        setClaims(claimRes.claims);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not load dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [router]);
-
-  const activePolicies = policies.filter((policy) => policy.status === 'active');
-  const activePlan = activePolicies[0] || null;
-  const totalProtected = activePolicies.reduce((sum, policy) => sum + policy.coverageAmount, 0);
-
-  const claimTrack = useMemo(() => {
-    const pending = claims.filter((claim) => (claim.settlementStatus || claim.status) === 'pending').length;
-    const review = claims.filter((claim) => {
-      const status = claim.settlementStatus || claim.status;
-      return status === 'under_review' || status === 'soft_flag';
-    }).length;
-    const approved = claims.filter((claim) => (claim.settlementStatus || claim.status) === 'approved').length;
-    const paid = claims.filter((claim) => (claim.settlementStatus || claim.status) === 'paid').length;
-
-    return [
-      { id: 'pending', label: 'Checking', value: pending, barClass: 'bg-amber-500', trackClass: 'bg-amber-100' },
-      { id: 'review', label: 'Review', value: review, barClass: 'bg-orange-500', trackClass: 'bg-orange-100' },
-      { id: 'approved', label: 'Approved', value: approved, barClass: 'bg-emerald-400', trackClass: 'bg-emerald-100' },
-      { id: 'paid', label: 'Paid', value: paid, barClass: 'bg-emerald-600', trackClass: 'bg-emerald-100' },
-    ];
-  }, [claims]);
-
-  const eventTrack = useMemo(() => {
-    const keys = ['rainfall', 'platform_outage', 'vehicle_accident', 'hospitalization'] as const;
-    return keys.map((key) => ({
-      id: key,
-      label: `${EVENT_VIEW[key].icon} ${EVENT_VIEW[key].label}`,
-      value: claims.filter((claim) => claim.triggerType === key).length,
-      barClass: EVENT_VIEW[key].barClass,
-      trackClass: EVENT_VIEW[key].trackClass,
-    }));
-  }, [claims]);
-
-  const recentClaims = useMemo(
-    () => [...claims].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
-    [claims],
-  );
-
   const handleLogout = () => {
     clearToken();
     logout();
     router.push('/login');
   };
+
+  const [loading, setLoading] = useState(true);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const activePlan = useMemo(
+    () => policies.find(p => p.status === 'active'),
+    [policies]
+  );
+
+  const totalProtected = activePlan?.coverageAmount || 0;
+
+  const recentClaims = useMemo(
+    () => claims.slice(0, 5),
+    [claims]
+  );
+
+  const claimTrack = [
+    {
+      id: "pending",
+      label: "Pending",
+      value: claims.filter(c => c.status === "pending").length,
+      barClass: "bg-yellow-500"
+    },
+    {
+      id: "review",
+      label: "Under Review",
+      value: claims.filter(c => c.status === "under_review").length,
+      barClass: "bg-blue-500"
+    },
+    {
+      id: "approved",
+      label: "Approved",
+      value: claims.filter(c => c.status === "approved").length,
+      barClass: "bg-green-500"
+    },
+    {
+      id: "paid",
+      label: "Paid",
+      value: claims.filter(c => c.status === "paid").length,
+      barClass: "bg-emerald-600"
+    }
+  ];
+
+  const eventTrack = Object.keys(EVENT_VIEW).map(key => ({
+    id: key,
+    label: EVENT_VIEW[key].label,
+    value: claims.filter(c => c.triggerType === key).length,
+    barClass:
+      key === "rainfall"
+        ? "bg-blue-500"
+        : key === "vehicle_accident"
+          ? "bg-red-500"
+          : key === "platform_outage"
+            ? "bg-yellow-500"
+            : "bg-purple-500"
+  }));
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [policyRes, claimRes] = await Promise.all([
+          apiClient.getPolicies(),
+          apiClient.getClaims()
+        ]);
+
+        setPolicies(policyRes.policies);
+        setClaims(claimRes.claims);
+      } catch (err) {
+        toast.error("Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 🔥 initial load
+    loadData();
+
+    // 🔥 listen to chatbot updates
+    const handleUpdate = () => {
+      console.log("🔥 Policy updated → refreshing dashboard");
+      loadData();
+    };
+
+    window.addEventListener("policyUpdated", handleUpdate);
+
+    return () => {
+      window.removeEventListener("policyUpdated", handleUpdate);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen finance-grid">

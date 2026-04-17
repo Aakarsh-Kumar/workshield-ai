@@ -6,113 +6,383 @@ const { createPolicy } = require('../services/policyService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Define the system instructions for WorkShield AI Bot
+// ---------------- SYSTEM PROMPT ----------------
 const SYSTEM_INSTRUCTIONS = `
-You are the WorkShield AI Assistant, a helpful and professional expert in parametric insurance for gig economy workers.
-Your goal is to help workers protect their earnings from unpredictable events like heavy rain, platform outages, accidents, or hospitalization.
+You are WorkShield AI, an intelligent assistant inside an insurance application for gig workers.
 
-Capabilities:
-1. YOU CAN LOOK UP THE USER'S POLICIES.
-2. YOU CAN LOOK UP THE USER'S CLAIMS.
-3. YOU CAN CREATE A NEW INSURANCE POLICY.
+Your role is to help users:
+- understand parametric insurance
+- choose the right plan
+- guide them to buy plans
+- guide them to file claims
+- answer insurance-related questions clearly
 
-IMPORTANT RULES:
-- When creating a policy, DO NOT use default values. You MUST ASK the user for:
-    a) Policy Type (daily or weekly)
-    b) Coverage Amount (in INR, minimum 100)
-    c) Trigger Types they want (rainfall, vehicle_accident, platform_outage, hospitalization)
-- Always use INR for currency.
-- If the user asks general insurance questions, answer them based on parametric insurance principles (automatic payout based on data triggers).
-- Be concise but friendly.
-- If the user is confused, explain that parametric insurance pays out automatically when a trigger (like 50mm rainfall) is met.
+----------------------------------------
+
+IMPORTANT BEHAVIOR RULES:
+
+1. PRODUCT CONTEXT
+- This is NOT a general chatbot.
+- Only talk about WorkShield insurance.
+- Do NOT ask what kind of plan the user means.
+- Assume the user is referring to WorkShield plans.
+
+2. AVAILABLE PLANS
+- Basic Plan → ₹1000/week
+- Plus Plan → ₹2500/week
+- Pro Plan → ₹5000/week
+
+Each plan protects against:
+- rainfall
+- vehicle accidents
+- platform outages
+- hospitalization
+
+3. WHEN USER WANTS TO BUY
+If user says things like:
+- "plus plan"
+- "buy plus"
+- "i want plus"
+
+Respond like:
+"Great choice. The Plus Plan offers ₹2500 weekly coverage. You can activate it now."
+
+DO NOT say:
+- "Which service?"
+- "What do you mean?"
+
+4. WHEN USER TALKS ABOUT CLAIMS
+Explain briefly:
+"Claims are triggered automatically based on real-world events like rainfall or accidents."
+
+If user gives an event:
+- "rainfall 60mm"
+- "vehicle accident"
+→ guide them to file claim
+
+5. KEEP RESPONSES SHORT
+- Max 2–3 lines
+- Clear and direct
+- No long paragraphs
+
+6. DO NOT:
+- Ask unnecessary clarification questions
+- Talk about unrelated topics
+- Mention being an AI model
+- Give generic ChatGPT-style answers
+
+7. TONE
+- Friendly
+- Confident
+- Professional
+- Helpful
+
+----------------------------------------
+
+EXAMPLES:
+
+User: "plus plan"
+→ "The Plus Plan gives ₹2500 weekly coverage. You can activate it now."
+
+User: "what is parametric insurance?"
+→ "Parametric insurance pays automatically when a condition is met, like heavy rainfall or an accident."
+
+User: "rainfall 70mm"
+→ "That qualifies for a claim based on rainfall. You can proceed to file it."
+
+----------------------------------------
+
+Always behave like a smart assistant inside an insurance product.
 `;
 
-/**
- * Gemini Tools (Function Calling)
- */
-const tools = [
-  {
-    functionDeclarations: [
-      {
-        name: 'list_my_policies',
-        description: 'Get a list of the users active and past insurance policies.',
-      },
-      {
-        name: 'list_my_claims',
-        description: 'Get a list of the users insurance claims and their current status.',
-      },
-      {
-        name: 'create_insurance_policy',
-        description: 'Create a new insurance policy for the user. Requires all details to be gathered from the user first.',
-        parameters: {
-          type: 'OBJECT',
-          properties: {
-            type: { type: 'STRING', enum: ['daily', 'weekly'], description: 'The duration of the policy.' },
-            coverageAmount: { type: 'NUMBER', description: 'The amount of coverage in INR.' },
-            triggerTypes: {
-              type: 'ARRAY',
-              items: { type: 'STRING', enum: ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization'] },
-              description: 'The types of events that trigger a payout.'
-            },
-          },
-          required: ['type', 'coverageAmount', 'triggerTypes'],
-        },
-      },
-    ],
-  },
+// ---------------- UTIL ----------------
+const ALL_TRIGGERS = [
+  "rainfall",
+  "vehicle_accident",
+  "platform_outage",
+  "hospitalization"
 ];
 
-/**
- * POST /api/chat/message
- */
-exports.sendMessage = async (req, res) => {
+// ---------------- TOOL EXECUTION ----------------
+const runTool = async (userId, call) => {
   try {
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+    const { name, args } = call;
 
-    // Check for API Key
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your_actual_gemini_api_key_here') {
-      const debugInfo = apiKey ? `Found dummy key (length: ${apiKey.length})` : 'Key is UNDEFINED';
-      throw new Error(`GEMINI_API_KEY is missing. Debug: ${debugInfo}. Check Docker Compose environment mapping.`);
+    // ---------- CREATE POLICY ----------
+    if (name === "create_insurance_policy") {
+      const policy = await createPolicy(userId, {
+        type: "weekly",
+        coverageAmount: args.coverageAmount,
+        triggerConfig: args.triggerTypes.map(t => ({
+          type: t,
+          threshold: 0,
+          payoutRatio: 1,
+        })),
+        status: "active"
+      });
+
+      return {
+        success: true,
+        policyNumber: policy.policyNumber
+      };
     }
 
-    // 1. Get or create history
-    let session = await ChatSession.findOne({ userId: req.user.id });
-    if (!session) {
-      session = await ChatSession.create({ userId: req.user.id, messages: [] });
+    // ---------- FILE CLAIM ----------
+    if (name === "file_claim") {
+
+      // 🔥 IMPORTANT FIX (no status filter)
+      const policies = await Policy.find({ userId, status: "active" })
+        .sort({ createdAt: -1 });
+
+      if (!policies) {
+        return { success: false, error: "No policy found" };
+      }
+
+      const claim = await Claim.create({
+        userId,
+        policyId: policy._id,
+        triggerType: args.triggerType,
+        observedValue: args.observedValue,
+        notes: args.notes || "",
+        status: "pending"
+      });
+
+      return {
+        success: true,
+        claimId: claim._id
+      };
     }
 
-    // 1. Initialize Gemini using v1 (more stable for standard accounts)
-    const model = genAI.getGenerativeModel(
-      { model: 'gemini-2.5-flash' },
-      { apiVersion: 'v1' }
-    );
-    const chat = model.startChat({ history: [] });
+    return { success: false, error: "Unknown tool" };
 
-    // 2. Send message
-    const result = await chat.sendMessage(message);
-    const response = await result.response;
-    const text = response.text() || "I heard you, but my response was empty.";
-
-    res.json({ success: true, reply: text });
   } catch (err) {
-    console.error('CRITICAL Chat Error:', err);
-    res.status(500).json({
+    console.error("❌ TOOL ERROR:", err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ---------------- MAIN CONTROLLER ----------------
+const sendMessage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const message = req.body.message;
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: "Message required"
+      });
+    }
+
+    const lower = message.toLowerCase().trim();
+
+    // =========================================================
+    // ================= PLAN HANDLING ==========================
+    // =========================================================
+
+    if (lower.includes("plus")) {
+      await runTool(userId, {
+        name: "create_insurance_policy",
+        args: {
+          coverageAmount: 2500,
+          triggerTypes: ALL_TRIGGERS
+        }
+      });
+
+      return res.json({
+        success: true,
+        reply: "Plus plan activated (₹2500/week)."
+      });
+    }
+
+    if (lower.includes("basic")) {
+      await runTool(userId, {
+        name: "create_insurance_policy",
+        args: {
+          coverageAmount: 1000,
+          triggerTypes: ALL_TRIGGERS
+        }
+      });
+
+      return res.json({
+        success: true,
+        reply: "Basic plan activated (₹1000/week)."
+      });
+    }
+
+    if (lower.includes("pro")) {
+      await runTool(userId, {
+        name: "create_insurance_policy",
+        args: {
+          coverageAmount: 5000,
+          triggerTypes: ALL_TRIGGERS
+        }
+      });
+
+      return res.json({
+        success: true,
+        reply: "Pro plan activated (₹5000/week)."
+      });
+    }
+
+    // =========================================================
+    // ================= CLAIM HANDLING =========================
+    // =========================================================
+
+    if (lower.includes("accident") && !lower.match(/\d+/)) {
+      return res.json({
+        success: true,
+        reply: "Provide value (e.g., 'vehicle accident 1')"
+      });
+    }
+    // ---------------- CLAIM WITHOUT NUMBER ----------------
+    if (lower.includes("hospital") && !lower.match(/\d+/)) {
+      return res.json({
+        success: true,
+        reply: "Please provide value (e.g., 'hospital 1 day')."
+      });
+    }
+
+    if ((lower.includes("rain") || lower.includes("accident") || lower.includes("app") || lower.includes("hospital"))
+      && !lower.match(/\d+/)) {
+      return res.json({
+        success: true,
+        reply: "Please include a value (e.g., 'rainfall 60', 'accident 1')."
+      });
+    }
+    const numberMatch = lower.match(/\d+/);
+
+    if (numberMatch) {
+      const value = parseInt(numberMatch[0]);
+
+      let triggerType = null;
+
+      if (lower.includes("rain")) triggerType = "rainfall";
+      else if (lower.includes("accident")) triggerType = "vehicle_accident";
+      else if (lower.includes("app") || lower.includes("outage")) triggerType = "platform_outage";
+      else if (lower.includes("hospital")) triggerType = "hospitalization";
+
+      if (triggerType) {
+        const result = await runTool(userId, {
+          name: "file_claim",
+          args: {
+            triggerType,
+            observedValue: value
+          }
+        });
+
+        if (!result.success) {
+          return res.json({
+            success: false,
+            reply: result.error
+          });
+        }
+
+        return res.json({
+          success: true,
+          reply: `Claim filed for ${triggerType.replace("_", " ")} (${value})`
+        });
+      }
+    }
+
+    // =========================================================
+    // ================= SESSION ================================
+    // =========================================================
+
+    let session = await ChatSession.findOne({ userId });
+
+    if (!session) {
+      session = await ChatSession.create({
+        userId,
+        messages: []
+      });
+    }
+
+    const history = session.messages.map(m => ({
+      role: m.role,
+      parts: m.parts
+    }));
+
+    // =========================================================
+    // ================= GEMINI ================================
+    // =========================================================
+
+    try {
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash-lite",
+        systemInstruction: SYSTEM_INSTRUCTIONS
+      });
+
+      const chat = model.startChat({ history });
+
+      const result = await chat.sendMessage(message);
+      const response = result.response;
+      const text = response.text() || "Done.";
+
+      // -------- SAVE HISTORY --------
+      session.messages.push({
+        role: "user",
+        parts: [{ text: message }]
+      });
+
+      session.messages.push({
+        role: "model",
+        parts: [{ text }]
+      });
+
+      if (session.messages.length > 20) {
+        session.messages = session.messages.slice(-20);
+      }
+
+      await session.save();
+
+      return res.json({
+        success: true,
+        reply: text
+      });
+
+    } catch (err) {
+      console.error("❌ GEMINI ERROR:", err);
+
+      return res.json({
+        success: true,
+        reply: "Ask about plans or claims."
+      });
+    }
+
+  } catch (err) {
+    console.error("❌ CONTROLLER ERROR:", err);
+
+    return res.status(500).json({
       success: false,
-      message: `AI Error: ${err.message || 'Unknown error'}`
+      message: err.message
     });
   }
 };
 
-/**
- * GET /api/chat/history
- */
-exports.getHistory = async (req, res) => {
+// ---------------- HISTORY ----------------
+const getHistory = async (req, res) => {
   try {
-    const session = await ChatSession.findOne({ userId: req.user.id }).lean();
-    res.json({ success: true, messages: session?.messages || [] });
+    const session = await ChatSession.findOne({
+      userId: req.user.id
+    }).lean();
+
+    return res.json({
+      success: true,
+      messages: session?.messages || []
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to fetch chat history' });
+    console.error("❌ HISTORY ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch history"
+    });
   }
+};
+
+module.exports = {
+  sendMessage,
+  getHistory
 };

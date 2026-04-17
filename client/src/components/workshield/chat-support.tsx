@@ -13,7 +13,7 @@ export function ChatSupport() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function ChatSupport() {
 
     const userMessage = input.trim();
     setInput('');
-    
+
     // Optimistic update
     const newMessage: ChatMessage = {
       role: 'user',
@@ -65,6 +65,9 @@ export function ChatSupport() {
           parts: [{ text: res.reply }],
           timestamp: new Date().toISOString()
         }]);
+
+        // 🔥 STEP 1 FIX: trigger dashboard refresh
+        window.dispatchEvent(new Event("policyUpdated"));
       }
     } catch (err: any) {
       console.error('Chat error:', err);
@@ -101,7 +104,7 @@ export function ChatSupport() {
             </CardTitle>
           </CardHeader>
 
-          <CardContent 
+          <CardContent
             ref={scrollRef}
             className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50"
           >
@@ -110,7 +113,7 @@ export function ChatSupport() {
                 <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               </div>
             )}
-            
+
             {messages.length === 0 && !fetchingHistory && (
               <div className="text-center py-10 px-6">
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
@@ -121,19 +124,18 @@ export function ChatSupport() {
             )}
 
             {messages.map((m, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div className={`flex gap-2 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center ${m.role === 'user' ? 'bg-slate-200' : 'bg-sky-100'}`}>
                     {m.role === 'user' ? <User className="h-4 w-4 text-slate-600" /> : <Bot className="h-4 w-4 text-sky-600" />}
                   </div>
-                  <div className={`p-3 rounded-2xl text-sm ${
-                    m.role === 'user' 
-                      ? 'bg-slate-900 text-white rounded-tr-none' 
+                  <div className={`p-3 rounded-2xl text-sm ${m.role === 'user'
+                      ? 'bg-slate-900 text-white rounded-tr-none'
                       : 'bg-white text-slate-800 shadow-sm border border-slate-100 rounded-tl-none'
-                  }`}>
+                    }`}>
                     {m.parts[0].text.split('\n').map((line, i) => (
                       <p key={i} className={line.trim() === '' ? 'h-2' : ''}>{line}</p>
                     ))}
@@ -144,7 +146,7 @@ export function ChatSupport() {
 
             {loading && (
               <div className="flex justify-start">
-                 <div className="flex gap-2 max-w-[85%] flex-row">
+                <div className="flex gap-2 max-w-[85%] flex-row">
                   <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center bg-sky-100">
                     <Bot className="h-4 w-4 text-sky-600" />
                   </div>
@@ -159,7 +161,7 @@ export function ChatSupport() {
           </CardContent>
 
           <CardFooter className="p-4 bg-white border-t border-slate-100">
-            <form 
+            <form
               className="flex w-full gap-2"
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
             >
@@ -170,9 +172,9 @@ export function ChatSupport() {
                 onChange={(e) => setInput(e.target.value)}
                 disabled={loading}
               />
-              <Button 
-                type="submit" 
-                size="icon" 
+              <Button
+                type="submit"
+                size="icon"
                 className="rounded-xl bg-sky-600 hover:bg-sky-700 h-10 w-10 flex-shrink-0"
                 disabled={!input.trim() || loading}
               >

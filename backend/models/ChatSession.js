@@ -8,12 +8,8 @@ const ChatSessionSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     messages: [
       {
-        role: { type: String, enum: ['user', 'model'], required: true },
-        parts: [
-          {
-            text: { type: String, required: true },
-          },
-        ],
+        role: { type: String, enum: ['user', 'model', 'function'], required: true },
+        parts: { type: mongoose.Schema.Types.Mixed, required: true },
         timestamp: { type: Date, default: Date.now },
       },
     ],
