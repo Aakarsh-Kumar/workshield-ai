@@ -85,7 +85,7 @@ exports.sendMessage = async (req, res) => {
 
     // 1. Initialize Gemini using v1 (more stable for standard accounts)
     const model = genAI.getGenerativeModel(
-      { model: 'gemini-2.5-flash' },
+      { model: 'gemini-2.5-flash-lite' },
       { apiVersion: 'v1' }
     );
     const chat = model.startChat({ history: [] });

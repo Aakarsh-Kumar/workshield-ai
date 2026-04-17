@@ -225,6 +225,7 @@ const deriveObservedTrigger = async ({
         },
       );
     }, 0);
+    const latestPing = pings[pings.length - 1];
 
     if (distanceKm < 0.2) {
       return {
@@ -247,8 +248,6 @@ const deriveObservedTrigger = async ({
         verified: false,
       };
     }
-
-    const latestPing = pings[pings.length - 1];
     let baseline;
     try {
       baseline = await fetchTrafficBaseline({

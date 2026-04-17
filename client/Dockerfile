@@ -7,8 +7,8 @@ WORKDIR /app
 
 COPY package.json bun.lockb* package-lock.json* ./
 RUN \
-    if [ -f bun.lockb ]; then npm install -g bun && bun install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
+    if [ -f package-lock.json ]; then npm ci; \
+    elif [ -f bun.lockb ]; then npm install -g bun && bun install --frozen-lockfile; \
     else npm install; fi
 
 # ── Builder ────────────────────────────────────────────────────────────────────

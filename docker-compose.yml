@@ -46,7 +46,7 @@ services:
     environment:
       WORKSHIELD_EXPORT_ROOT: /ml-export
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.0-flash-lite}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.5-pro}
     volumes:
       - ./workshield_export:/ml-export:ro
     expose:
@@ -96,4 +96,4 @@ volumes:
 
 networks:
   shared-net:
-    external: true
+    driver: bridge

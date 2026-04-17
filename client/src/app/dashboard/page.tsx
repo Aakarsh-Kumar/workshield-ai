@@ -13,7 +13,7 @@ import { useAppStore } from '@/store';
 import { formatRelativeTime } from '@/utils';
 import { BarList } from '@/components/workshield/bar-list';
 import { StatusChip } from '@/components/workshield/status-chip';
-import { ChatSupport } from '@/components/workshield/chat-support';
+
 import { useLocationTracking } from '@/hooks/useLocationTracking';
 
 const LocationMap = dynamic(
@@ -28,6 +28,47 @@ const EVENT_VIEW: Record<string, { label: string; icon: string; barClass: string
   vehicle_accident: { label: 'Accident', icon: 'Crash', barClass: 'bg-rose-500', trackClass: 'bg-rose-100' },
   hospitalization: { label: 'Hospital', icon: 'Care', barClass: 'bg-emerald-500', trackClass: 'bg-emerald-100' },
 };
+
+type LooseObject = Record<string, unknown>;
+
+function asObject(value: unknown): LooseObject | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as LooseObject;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function describeRiskBand(score: number | null | undefined) {
+  if (typeof score !== 'number') return null;
+  if (score >= 0.7) return 'High risk';
+  if (score >= 0.3) return 'Medium risk';
+  return 'Low risk';
+}
+
+function claimHighlights(claim: Claim) {
+  const evaluationMeta = asObject(claim.evaluationMeta);
+  const verification = asObject(evaluationMeta?.verification);
+  const fraud = asObject(evaluationMeta?.fraud);
+
+  const verificationSource = asString(verification?.source);
+  const verificationReason = asString(verification?.reason);
+  const ruleHits = asStringArray(fraud?.ruleHits);
+  const fallbackSignals = asStringArray(claim.fraudSignals);
+
+  return {
+    verificationSource,
+    verificationReason,
+    ruleHits: ruleHits.length > 0 ? ruleHits : fallbackSignals,
+    riskBand: describeRiskBand(claim.fraudScore),
+  };
+}
 
 function trackingSummary(isTracking: boolean, hasPermission: boolean | null, syncStatus: string) {
   if (hasPermission === false) return 'Location permission is off. Quotes and disaster validation stay neutral until enabled.';
@@ -249,6 +290,7 @@ export default function DashboardPage() {
                 <div className="mt-3 space-y-2">
                   {recentClaims.map((claim) => {
                     const zoneValidation = claim.evaluationMeta?.zoneValidation as { inZone?: boolean | null } | undefined;
+                    const details = claimHighlights(claim);
                     return (
                       <article key={claim._id} className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="flex items-center justify-between gap-2">
@@ -263,6 +305,33 @@ export default function DashboardPage() {
                         <p className="mt-1 text-xs text-slate-600">
                           INR {Number(claim.approvedAmount || claim.claimAmount || 0).toLocaleString('en-IN')} · {formatRelativeTime(claim.createdAt)}
                         </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {claim.reasonCode ? (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                              Reason: {claim.reasonCode}
+                            </span>
+                          ) : null}
+                          {details.riskBand ? (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                              {details.riskBand}
+                            </span>
+                          ) : null}
+                          {details.verificationSource ? (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                              Verification: {details.verificationSource}
+                            </span>
+                          ) : null}
+                        </div>
+                        {details.verificationReason ? (
+                          <p className="mt-1 text-xs text-amber-700">Review note: {details.verificationReason}</p>
+                        ) : null}
+                        {details.ruleHits.length > 0 ? (
+                          <p className="mt-1 text-xs text-slate-600">
+                            Rule hits: {details.ruleHits.slice(0, 3).join(', ')}
+                            {details.ruleHits.length > 3 ? ' +' : ''}
+                            {details.ruleHits.length > 3 ? details.ruleHits.length - 3 : ''}
+                          </p>
+                        ) : null}
                         {zoneValidation?.inZone !== undefined && zoneValidation?.inZone !== null ? (
                           <p className="mt-1 text-xs text-slate-500">
                             Zone validation: {zoneValidation.inZone ? 'Matched' : 'Not matched'}
@@ -277,8 +346,6 @@ export default function DashboardPage() {
           </Card>
         </section>
       </main>
-
-      <ChatSupport />
     </div>
   );
 }

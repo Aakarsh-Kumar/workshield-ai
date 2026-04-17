@@ -132,7 +132,7 @@ export function ChatSupport() {
                   <div className={`p-3 rounded-2xl text-sm ${
                     m.role === 'user' 
                       ? 'bg-slate-900 text-white rounded-tr-none' 
-                      : 'bg-white text-slate-800 shadow-sm border border-slate-100 rounded-tl-none'
+                      : 'bg-white text-slate-900 shadow-sm border border-slate-100 rounded-tl-none font-medium'
                   }`}>
                     {m.parts[0].text.split('\n').map((line, i) => (
                       <p key={i} className={line.trim() === '' ? 'h-2' : ''}>{line}</p>
@@ -148,7 +148,7 @@ export function ChatSupport() {
                   <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center bg-sky-100">
                     <Bot className="h-4 w-4 text-sky-600" />
                   </div>
-                  <div className="p-3 rounded-2xl text-sm bg-white text-slate-800 shadow-sm border border-slate-100 rounded-tl-none flex items-center gap-1">
+                  <div className="p-3 rounded-2xl text-sm bg-white text-slate-900 shadow-sm border border-slate-100 rounded-tl-none flex items-center gap-1 font-medium">
                     <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"></span>
                     <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                     <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"></span>
