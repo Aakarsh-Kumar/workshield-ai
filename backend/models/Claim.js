@@ -5,7 +5,7 @@ const { SETTLEMENT_STATUS } = require('../constants/decisionContract');
  * Claim — filed against an active Policy when a trigger event occurs.
  *
  * In parametric insurance, claims are straightforward:
- *  - Worker reports a trigger event with observed value
+ *  - Worker reports a trigger event with context
  *  - AI fraud service scores the claim
  *  - If clean and trigger met, payout is auto-approved
  */
@@ -17,7 +17,7 @@ const ClaimSchema = new mongoose.Schema(
     // Reported parametric trigger
     triggerType: {
       type: String,
-      enum: ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization'],
+      enum: ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization', 'traffic_congestion'],
       required: true,
     },
     triggerValue: { type: Number }, // mm of rain, hours of outage, etc.
@@ -56,8 +56,13 @@ const ClaimSchema = new mongoose.Schema(
     evaluationMeta: { type: mongoose.Schema.Types.Mixed },
     responseContractVersion: { type: String, default: 'v1' },
 
-    // Supporting documents (S3 keys or local paths)
-    documents: [{ type: String }],
+    documents: [
+      {
+        content_base64: { type: String },
+        mime_type: { type: String },
+        file_name: { type: String },
+      },
+    ],
 
     remarks: { type: String },
     processedAt: { type: Date },

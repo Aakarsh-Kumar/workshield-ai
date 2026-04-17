@@ -9,7 +9,7 @@ const {
  * Policy — parametric insurance policy for a gig worker.
  *
  * Parametric insurance pays out automatically when a pre-defined trigger
- * condition is met (e.g., >50mm rainfall, >4hr platform outage), without
+ * condition is met (e.g., >50mm rainfall, >4hr platform outage, >45min congestion delay), without
  * requiring a traditional loss assessment.
  */
 const PolicySchema = new mongoose.Schema(
@@ -45,7 +45,7 @@ const PolicySchema = new mongoose.Schema(
       {
         type: {
           type: String,
-          enum: ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization'],
+          enum: ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization', 'traffic_congestion'],
         },
         threshold: { type: Number },
         payoutRatio: { type: Number, min: 0, max: 1 },

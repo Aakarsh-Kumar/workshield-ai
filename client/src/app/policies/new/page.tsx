@@ -9,9 +9,9 @@ import apiClient from '@/lib/apiClient';
 import { useAppStore } from '@/store';
 
 const WEEKLY_PLANS = [
-  { id: 'basic', cover: 1000, label: 'Basic', note: 'Good for light weekly support' },
-  { id: 'plus', cover: 2500, label: 'Plus', note: 'Best balance for active workers' },
-  { id: 'pro', cover: 5000, label: 'Pro', note: 'High income protection' },
+  { id: 'basic', cover: 1000, label: 'Basic', note: 'Good for light weekly support', services: ['Rainfall', 'Platform outage'] },
+  { id: 'plus', cover: 2500, label: 'Plus', note: 'Best balance for active workers', services: ['Rainfall', 'Platform outage', 'Vehicle accident', 'Hospitalization'] },
+  { id: 'pro', cover: 5000, label: 'Pro', note: 'High income protection', services: ['Rainfall', 'Platform outage', 'Vehicle accident', 'Hospitalization', 'Traffic congestion'] },
 ] as const;
 
 type WeeklyPlan = (typeof WEEKLY_PLANS)[number];
@@ -21,6 +21,7 @@ const TRIGGERS = [
   { name: 'App down', detail: 'Platform outage for long hours', style: 'ws-chip-outage' },
   { name: 'Accident', detail: 'Verified vehicle incident', style: 'ws-chip-accident' },
   { name: 'Hospital', detail: 'Inpatient hospitalization event', style: 'ws-chip-health' },
+  { name: 'Traffic', detail: 'Severe congestion delay', style: 'bg-fuchsia-100 text-fuchsia-700' },
 ];
 
 export default function NewPolicyPage() {
@@ -42,10 +43,21 @@ export default function NewPolicyPage() {
     return 'Lower risk week, better premium band';
   }, [effectiveRisk]);
 
+  const tierBadge = selectedPlan.id === 'basic'
+    ? 'Essential triggers'
+    : selectedPlan.id === 'plus'
+      ? 'Expanded protection'
+      : 'Full trigger access';
+
   const handleQuote = async () => {
     setQuoteLoading(true);
     try {
-      const result = await apiClient.getQuote(effectiveDeliveries, effectivePlatform, effectiveRisk);
+      const result = await apiClient.getQuote(
+        effectiveDeliveries,
+        effectivePlatform,
+        selectedPlan.cover,
+        effectiveRisk,
+      );
       setQuote(result.premium);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not get quote');
@@ -107,17 +119,26 @@ export default function NewPolicyPage() {
                 key={plan.id}
                 type="button"
                 onClick={() => setSelectedPlan(plan)}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  selected
+                className={`rounded-2xl border p-4 text-left transition ${selected
                     ? 'border-slate-900 bg-slate-900 text-white shadow-lg'
                     : 'border-slate-200 bg-white hover:border-slate-400'
-                }`}
+                  }`}
               >
                 <p className={`text-xs uppercase tracking-[0.16em] ${selected ? 'text-slate-300' : 'text-slate-500'}`}>{plan.label}</p>
                 <p className={`mt-1 text-2xl font-semibold ${selected ? 'text-white' : 'text-slate-900'}`}>
                   INR {plan.cover.toLocaleString('en-IN')}
                 </p>
                 <p className={`mt-2 text-sm ${selected ? 'text-slate-200' : 'text-slate-600'}`}>{plan.note}</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  {plan.services.map((service) => (
+                    <span
+                      key={`${plan.id}-${service}`}
+                      className={`rounded-full px-2 py-1 ${selected ? 'bg-white/10 text-slate-100' : 'bg-slate-100 text-slate-700'}`}
+                    >
+                      {service}
+                    </span>
+                  ))}
+                </div>
               </button>
             );
           })}
@@ -129,6 +150,7 @@ export default function NewPolicyPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Plan selected</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">{selectedPlan.label} · INR {selectedPlan.cover.toLocaleString('en-IN')}</p>
+                <p className="mt-1 text-xs font-medium text-slate-700">{tierBadge}</p>
                 <p className="mt-1 text-xs text-slate-600">Coverage refreshes every 7 days.</p>
               </div>
 
@@ -139,6 +161,17 @@ export default function NewPolicyPage() {
               </div>
             </div>
 
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Included claim triggers</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedPlan.services.map((service) => (
+                  <span key={`selected-${service}`} className="rounded-full bg-white px-3 py-1 text-xs text-slate-700">
+                    {service}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             {quote != null ? (
               <div className="rounded-xl bg-emerald-50 p-4 text-center">
                 <p className="text-xs uppercase tracking-[0.12em] text-emerald-700">Weekly premium</p>
@@ -146,7 +179,7 @@ export default function NewPolicyPage() {
               </div>
             ) : (
               <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm text-slate-600">
-                Tap "Get weekly quote" to see premium.
+                Tap &quot;Get weekly quote&quot; to see premium.
               </p>
             )}
 

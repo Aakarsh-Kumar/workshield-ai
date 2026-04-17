@@ -1,5 +1,6 @@
 const axios = require('axios');
 const Claim = require('../models/Claim');
+const LocationPing = require('../models/LocationPing');
 const { buildTransition } = require('./settlementService');
 const {
   REASON_CODES,
@@ -10,6 +11,19 @@ const {
 } = require('../constants/decisionContract');
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:5001';
+
+const toRadians = (value) => (Number(value) * Math.PI) / 180;
+const haversineKm = (from, to) => {
+  if (!from || !to) return 0;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(Number(to.latitude) - Number(from.latitude));
+  const dLng = toRadians(Number(to.longitude) - Number(from.longitude));
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRadians(Number(from.latitude)))
+    * Math.cos(toRadians(Number(to.latitude)))
+    * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const hoursSince = (dateValue) => {
   if (!dateValue) return 0;
@@ -30,6 +44,138 @@ const recommendationFromVerdict = (verdict) => {
   return 'AUTO_APPROVE';
 };
 
+const getReferenceLocation = (claim) => {
+  const verification = claim?.evaluationMeta?.verification || {};
+  if (verification.referenceLocation?.latitude && verification.referenceLocation?.longitude) {
+    return verification.referenceLocation;
+  }
+  if (verification.latitude && verification.longitude) {
+    return {
+      latitude: verification.latitude,
+      longitude: verification.longitude,
+    };
+  }
+  return null;
+};
+
+const getRecentWindowCoverageRatio = (claim) => {
+  const timeWindow = claim?.evaluationMeta?.verification?.timeWindow;
+  const actualDurationMinutes = Number(claim?.evaluationMeta?.verification?.actualDurationMinutes || 0);
+  if (!timeWindow?.start || !timeWindow?.end) return 1.0;
+
+  const requestedMinutes = Math.max(
+    1,
+    (new Date(timeWindow.end).getTime() - new Date(timeWindow.start).getTime()) / 60_000,
+  );
+  if (actualDurationMinutes <= 0) return 0;
+  return Math.max(0, Math.min(actualDurationMinutes / requestedMinutes, 1));
+};
+
+const getOperationalSignals = async (claim) => {
+  const verification = claim?.evaluationMeta?.verification || {};
+  const routeSignature = verification.routeSignature || null;
+  const referenceLocation = getReferenceLocation(claim);
+  const now = new Date(claim.createdAt || new Date());
+  const from24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const from7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const previousClaim = await Claim.findOne({
+    userId: claim.userId?._id,
+    _id: { $ne: claim._id },
+  }).sort({ createdAt: -1 }).lean();
+
+  let impossibleTravelFlag = 0;
+  let previousDistanceKm = 0;
+  if (previousClaim && referenceLocation) {
+    const previousLocation = getReferenceLocation(previousClaim);
+    if (previousLocation) {
+      previousDistanceKm = haversineKm(previousLocation, referenceLocation);
+      const hoursGap = Math.max(
+        1 / 60,
+        Math.abs(new Date(claim.createdAt).getTime() - new Date(previousClaim.createdAt).getTime()) / 3_600_000,
+      );
+      impossibleTravelFlag = previousDistanceKm / hoursGap > 80 ? 1 : 0;
+    }
+  }
+
+  const [recentClaimsSameRoute24h, repeatedRouteClaims7d, clusterClaims24h, latestPing, recentPings24h] = await Promise.all([
+    routeSignature
+      ? Claim.countDocuments({
+        _id: { $ne: claim._id },
+        createdAt: { $gte: from24h },
+        'evaluationMeta.verification.routeSignature': routeSignature,
+      })
+      : Promise.resolve(0),
+    routeSignature
+      ? Claim.countDocuments({
+        _id: { $ne: claim._id },
+        createdAt: { $gte: from7d },
+        'evaluationMeta.verification.routeSignature': routeSignature,
+      })
+      : Promise.resolve(0),
+    referenceLocation
+      ? Claim.countDocuments({
+        _id: { $ne: claim._id },
+        createdAt: { $gte: from24h },
+        'evaluationMeta.verification.referenceLocation.latitude': {
+          $gte: Number(referenceLocation.latitude) - 0.01,
+          $lte: Number(referenceLocation.latitude) + 0.01,
+        },
+        'evaluationMeta.verification.referenceLocation.longitude': {
+          $gte: Number(referenceLocation.longitude) - 0.01,
+          $lte: Number(referenceLocation.longitude) + 0.01,
+        },
+      })
+      : Promise.resolve(0),
+    LocationPing.findOne({ workerId: claim.userId?._id }).sort({ timestamp: -1 }).lean(),
+    LocationPing.find({
+      workerId: claim.userId?._id,
+      timestamp: { $gte: from24h },
+    }).sort({ timestamp: -1 }).limit(200).lean(),
+  ]);
+
+  const distinctSessionCount24h = new Set(
+    recentPings24h
+      .map((ping) => ping?.telemetry?.sessionId)
+      .filter(Boolean),
+  ).size;
+  const distinctDeviceCount24h = new Set(
+    recentPings24h
+      .map((ping) => ping?.telemetry?.deviceId)
+      .filter(Boolean),
+  ).size;
+  const offlineSyncRatio24h = recentPings24h.length > 0
+    ? recentPings24h.filter((ping) => ping.isOfflineSync).length / recentPings24h.length
+    : 0;
+  const suspiciousSessionResetFlag = distinctSessionCount24h >= 4 ? 1 : 0;
+  const telemetryDeviceChurnFlag = distinctDeviceCount24h >= 2 || distinctSessionCount24h >= 3 ? 1 : 0;
+
+  const gpsDistanceToEventZoneKm = referenceLocation && latestPing?.location?.coordinates
+    ? haversineKm(referenceLocation, {
+      latitude: Number(latestPing.location.coordinates[1]),
+      longitude: Number(latestPing.location.coordinates[0]),
+    })
+    : 0;
+
+  return {
+    routeSignature,
+    referenceLocation,
+    recentClaimsSameRoute24h,
+    repeatedRouteClaims7d,
+    clusterClaims24h,
+    impossibleTravelFlag,
+    distinctSessionCount24h,
+    distinctDeviceCount24h,
+    offlineSyncRatio24h: Number(offlineSyncRatio24h.toFixed(2)),
+    suspiciousSessionResetFlag,
+    telemetryDeviceChurnFlag,
+    latestTelemetry: latestPing?.telemetry || null,
+    previousDistanceKm: Number(previousDistanceKm.toFixed(2)),
+    gpsDistanceToEventZoneKm: Number(gpsDistanceToEventZoneKm.toFixed(2)),
+    activeHoursOverlapRatio: getRecentWindowCoverageRatio(claim),
+  };
+};
+
 /**
  * checkFraud — sends claim data to the Python AI fraud detection endpoint.
  *
@@ -42,7 +188,11 @@ const recommendationFromVerdict = (verdict) => {
  * @param {string} claimId  — MongoDB ObjectId string
  * @returns {Promise<{ fraudScore: number, isFraudulent: boolean, verdict: string, recommendation: string }>}
  */
-const checkFraud = async (claimId) => {
+const checkFraud = async (claimId, options = {}) => {
+  const {
+    allowAutoApprove = true,
+    preservePendingReason = false,
+  } = options;
   const claim = await Claim.findById(claimId)
     .populate('policyId', 'coverageAmount createdAt triggers exclusions')
     .populate('userId', 'weeklyDeliveries platform');
@@ -56,6 +206,7 @@ const checkFraud = async (claimId) => {
     triggerType: claim.triggerType,
     createdAt: { $gte: from24h },
   });
+  const operationalSignals = await getOperationalSignals(claim);
 
   const triggerConfig = getTriggerConfig(claim.policyId, claim.triggerType);
   const claimAmount = Number(claim.claimAmount ?? 0);
@@ -73,14 +224,17 @@ const checkFraud = async (claimId) => {
     payout_ratio: triggerConfig.payoutRatio,
     income_loss_estimate: claimAmount,
     weather_severity: 2,
-    gps_distance_to_event_zone_km: 0,
-    active_hours_overlap_ratio: 1.0,
-    recent_claims_same_zone_24h: recentClaimsByTrigger,
-    recent_claims_same_device_24h: 0,
+    gps_distance_to_event_zone_km: operationalSignals.gpsDistanceToEventZoneKm,
+    active_hours_overlap_ratio: operationalSignals.activeHoursOverlapRatio,
+    recent_claims_same_zone_24h: Math.max(recentClaimsByTrigger, operationalSignals.clusterClaims24h),
+    recent_claims_same_device_24h: Math.max(
+      operationalSignals.recentClaimsSameRoute24h,
+      operationalSignals.distinctDeviceCount24h,
+    ),
     recent_claims_same_ip_24h: recentClaimsByUser,
-    device_rooted_flag: 0,
-    mock_location_flag: 0,
-    gps_speed_jump_flag: 0,
+    device_rooted_flag: operationalSignals.telemetryDeviceChurnFlag,
+    mock_location_flag: operationalSignals.offlineSyncRatio24h >= 0.8 ? 1 : 0,
+    gps_speed_jump_flag: operationalSignals.impossibleTravelFlag,
     policy_exclusion_hit_flag: 0,
     user_weekly_deliveries: claim.userId?.weeklyDeliveries ?? 0,
     policy_age_days: Math.floor(hoursSince(claim.policyId?.createdAt) / 24),
@@ -123,20 +277,80 @@ const checkFraud = async (claimId) => {
     evaluationMeta = {
       mode: 'backend_rule_fallback',
       fallbackError: err.message,
+      operationalSignals,
     };
   }
 
+  if (operationalSignals.telemetryDeviceChurnFlag) {
+    signals = Array.from(new Set([...signals, 'telemetry_device_churn']));
+  }
+  if (operationalSignals.offlineSyncRatio24h >= 0.8) {
+    signals = Array.from(new Set([...signals, 'offline_sync_heavy']));
+  }
+  if (operationalSignals.suspiciousSessionResetFlag) {
+    signals = Array.from(new Set([...signals, 'suspicious_session_reset']));
+  }
+
   const targetSettlementStatus = mapVerdictToSettlementStatus(verdict);
+  const shouldStayPending = !allowAutoApprove && verdict === VERDICTS.AUTO_APPROVE;
+  const existingEvaluationMeta = claim.evaluationMeta && typeof claim.evaluationMeta === 'object'
+    ? claim.evaluationMeta
+    : {};
+
+  if (shouldStayPending) {
+    const nextReasonDetail = preservePendingReason && claim.reasonDetail
+      ? claim.reasonDetail
+      : 'Fraud score completed. Claim is still waiting for manual verification.';
+
+    await Claim.findByIdAndUpdate(claimId, {
+      fraudScore,
+      isFraudulent,
+      fraudVerdict: verdict,
+      fraudSignals: signals,
+      fraudModelVersion: modelVersion,
+      reasonCode: claim.reasonCode || REASON_CODES.CLAIM_FILED,
+      reasonDetail: nextReasonDetail,
+      payoutEligibility: false,
+      evaluationMeta: {
+        ...existingEvaluationMeta,
+        fraud: {
+          ...evaluationMeta,
+          modelVersion,
+          ruleHits: signals,
+          operationalSignals,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      remarks: nextReasonDetail,
+    });
+
+    return {
+      fraudScore,
+      isFraudulent,
+      verdict,
+      recommendation,
+      reasonCode: claim.reasonCode || REASON_CODES.CLAIM_FILED,
+      reasonDetail: nextReasonDetail,
+      settlementStatus: claim.settlementStatus || SETTLEMENT_STATUS.PENDING,
+      payoutEligibility: false,
+      evaluationMeta,
+    };
+  }
+
   const transition = buildTransition({
     currentStatus: claim.settlementStatus || SETTLEMENT_STATUS.PENDING,
     targetStatus: targetSettlementStatus,
     reasonCode,
     reasonDetail,
     evaluationMeta: {
-      ...evaluationMeta,
-      modelVersion: modelVersion,
-      ruleHits: signals,
-      timestamp: new Date().toISOString(),
+      ...existingEvaluationMeta,
+      fraud: {
+        ...evaluationMeta,
+        modelVersion: modelVersion,
+        ruleHits: signals,
+        operationalSignals,
+        timestamp: new Date().toISOString(),
+      },
     },
   });
 
@@ -145,8 +359,10 @@ const checkFraud = async (claimId) => {
       reasonCode: transition.error.reasonCode,
       reasonDetail: transition.error.reasonDetail,
       evaluationMeta: {
+        ...existingEvaluationMeta,
         mode: 'transition_error',
         attemptedTarget: targetSettlementStatus,
+        operationalSignals,
         timestamp: new Date().toISOString(),
       },
     });

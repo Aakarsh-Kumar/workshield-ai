@@ -36,9 +36,17 @@ const team2OpsLimiter = rateLimit({
   message: { success: false, message: 'Team 2 operation rate limit reached. Please retry later.' },
 });
 
+const locationPingsLimiter = rateLimit({
+  ...baseConfig,
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_LOCATION_MAX || 200),
+  message: { success: false, message: 'Location ping rate limit reached.' },
+});
+
 module.exports = {
   apiLimiter,
   authLimiter,
   claimWriteLimiter,
   team2OpsLimiter,
+  locationPingsLimiter,
 };

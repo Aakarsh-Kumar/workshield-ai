@@ -1,7 +1,25 @@
 const { body, param, query } = require('express-validator');
+const { SETTLEMENT_STATUS } = require('../constants/decisionContract');
 
 const runPayoutCycleSchema = [
   body('limit').optional({ nullable: true }).isInt({ min: 1, max: 500 }).withMessage('limit must be between 1 and 500'),
+];
+
+const claimFraudBackfillSchema = [
+  body('limit').optional({ nullable: true }).isInt({ min: 1, max: 200 }).withMessage('limit must be between 1 and 200'),
+  body('settlementStatuses').optional({ nullable: true }).isArray({ min: 1, max: 4 }),
+  body('settlementStatuses.*').optional().isIn([
+    SETTLEMENT_STATUS.PENDING,
+    SETTLEMENT_STATUS.SOFT_FLAG,
+    SETTLEMENT_STATUS.HARD_BLOCK,
+    SETTLEMENT_STATUS.APPROVED,
+  ]),
+  body('unscoredOnly').optional({ nullable: true }).isBoolean(),
+  body('olderThanHours').optional({ nullable: true }).isInt({ min: 0, max: 24 * 365 }),
+];
+
+const team2ClaimDetailSchema = [
+  param('id').isMongoId().withMessage('valid claim id is required'),
 ];
 
 const manualReviewDecisionSchema = [
@@ -38,6 +56,8 @@ const auditLogsQuerySchema = [
 
 module.exports = {
   runPayoutCycleSchema,
+  claimFraudBackfillSchema,
+  team2ClaimDetailSchema,
   manualReviewDecisionSchema,
   payoutAttemptsQuerySchema,
   manualReviewQueueQuerySchema,

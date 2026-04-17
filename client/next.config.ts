@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+const backendUrl =
+  process.env.BACKEND_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:4000" : "http://backend:4000");
+
+const aiServiceUrl =
+  process.env.AI_SERVICE_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:5001" : "http://ai-service:5001");
+
 const nextConfig: NextConfig = {
   // Required for optimised Docker image (copies only what's needed to run)
   output: "standalone",
@@ -10,18 +18,16 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
 
-  // Development proxy rewrites so `next dev` works without Docker/NGINX.
-  // In production, NGINX handles /api and /ai routing.
+  // Keep browser traffic same-origin in both local and Docker runs.
   async rewrites() {
-    if (process.env.NODE_ENV !== "development") return [];
     return [
       {
         source: "/api/:path*",
-        destination: `${process.env.BACKEND_URL ?? "http://localhost:4000"}/api/:path*`,
+        destination: `${backendUrl}/api/:path*`,
       },
       {
         source: "/ai/:path*",
-        destination: `${process.env.AI_SERVICE_URL ?? "http://localhost:5001"}/:path*`,
+        destination: `${aiServiceUrl}/:path*`,
       },
     ];
   },

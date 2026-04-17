@@ -19,6 +19,13 @@ import { BarList } from '@/components/workshield/bar-list';
 import { StatusChip } from '@/components/workshield/status-chip';
 import { AdminClaimsTable, type AdminClaimRow } from '@/components/workshield/admin-claims-table';
 
+const BACKFILL_TARGETS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'soft_flag', label: 'Review hold' },
+  { value: 'hard_block', label: 'Blocked' },
+  { value: 'approved', label: 'Approved' },
+];
+
 export default function Team2OpsPage() {
   const router = useRouter();
   const { currentUser, logout } = useAppStore();
@@ -27,12 +34,18 @@ export default function Team2OpsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [runningCycle, setRunningCycle] = useState(false);
   const [runningReconcile, setRunningReconcile] = useState(false);
+  const [runningBackfill, setRunningBackfill] = useState(false);
 
   const [summary, setSummary] = useState<Team2OpsSummary | null>(null);
   const [scheduler, setScheduler] = useState<Team2SchedulerStatus | null>(null);
   const [reviewQueue, setReviewQueue] = useState<Claim[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [attempts, setAttempts] = useState<Team2PayoutAttempt[]>([]);
   const [auditLogs, setAuditLogs] = useState<Team2AuditLog[]>([]);
+
+  const [selectedBackfillTargets, setSelectedBackfillTargets] = useState<string[]>(['pending']);
+  const [includeScoredClaims, setIncludeScoredClaims] = useState(false);
+  const [olderThanHours, setOlderThanHours] = useState(6);
 
   const ensureAccess = useCallback(() => {
     if (!isAuthenticated()) {
@@ -57,10 +70,11 @@ export default function Team2OpsPage() {
       else setLoading(true);
 
       try {
-        const [summaryRes, schedulerRes, queueRes, attemptsRes, auditRes] = await Promise.all([
+        const [summaryRes, schedulerRes, queueRes, claimsRes, attemptsRes, auditRes] = await Promise.all([
           apiClient.getTeam2OpsSummary(),
           apiClient.getTeam2SchedulerStatus(),
           apiClient.getTeam2ReviewQueue(40),
+          apiClient.getAdminClaims(),
           apiClient.getTeam2PayoutAttempts(undefined, 60),
           apiClient.getTeam2AuditLogs(25),
         ]);
@@ -68,6 +82,7 @@ export default function Team2OpsPage() {
         setSummary(summaryRes.summary);
         setScheduler(schedulerRes.scheduler);
         setReviewQueue(queueRes.queue);
+        setClaims(claimsRes.claims);
         setAttempts(attemptsRes.attempts);
         setAuditLogs(auditRes.logs);
       } catch (err) {
@@ -96,12 +111,32 @@ export default function Team2OpsPage() {
   }, [summary?.payoutAttempts]);
 
   const claimRows = useMemo<AdminClaimRow[]>(() => {
+    const fromClaims: AdminClaimRow[] = claims.map((claim) => {
+      const worker = typeof claim.userId === 'object' && claim.userId ? claim.userId : null;
+
+      return {
+        id: claim._id,
+        triggerType: claim.triggerType,
+        verificationState: claim.verificationState,
+        status: claim.settlementStatus || claim.status,
+        amount: Number(claim.approvedAmount || claim.claimAmount || 0),
+        fraudScore: claim.fraudScore ?? null,
+        fraudModelVersion: claim.fraudModelVersion,
+        reasonCode: claim.reasonCode,
+        updatedAt: claim.processedAt || claim.createdAt,
+        source: 'claim',
+        workerLabel: worker?.name || worker?.email || 'Latest claim',
+      };
+    });
+
     const fromQueue: AdminClaimRow[] = reviewQueue.map((claim) => ({
       id: claim._id,
       triggerType: claim.triggerType,
+      verificationState: claim.verificationState,
       status: claim.settlementStatus || claim.status,
       amount: Number(claim.claimAmount || 0),
       fraudScore: claim.fraudScore ?? null,
+      fraudModelVersion: claim.fraudModelVersion,
       reasonCode: claim.reasonCode,
       updatedAt: claim.processedAt || claim.createdAt,
       source: 'review',
@@ -115,9 +150,11 @@ export default function Team2OpsPage() {
       return {
         id: claimId,
         triggerType: 'rainfall',
+        verificationState: undefined,
         status: attempt.status,
         amount,
         fraudScore: null,
+        fraudModelVersion: undefined,
         reasonCode: claim?.reasonCode,
         updatedAt: attempt.updatedAt,
         source: 'payout',
@@ -127,14 +164,20 @@ export default function Team2OpsPage() {
     });
 
     const dedup = new Map<string, AdminClaimRow>();
-    [...fromAttempts, ...fromQueue].forEach((row) => {
-      if (!dedup.has(row.id) || row.source === 'review') {
+    [...fromAttempts, ...fromClaims, ...fromQueue].forEach((row) => {
+      const existing = dedup.get(row.id);
+      const priority = row.source === 'review' ? 3 : row.source === 'claim' ? 2 : 1;
+      const existingPriority = existing ? (existing.source === 'review' ? 3 : existing.source === 'claim' ? 2 : 1) : 0;
+
+      if (!existing || priority >= existingPriority) {
         dedup.set(row.id, row);
       }
     });
 
-    return Array.from(dedup.values());
-  }, [attempts, reviewQueue]);
+    return Array.from(dedup.values()).sort(
+      (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime(),
+    );
+  }, [attempts, claims, reviewQueue]);
 
   const fraudAlerts = useMemo(() => {
     return reviewQueue.filter((claim) => {
@@ -144,10 +187,34 @@ export default function Team2OpsPage() {
     });
   }, [reviewQueue]);
 
+  const playbookGroups = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+    [...reviewQueue, ...claims].forEach((claim) => {
+      if (!Array.isArray(claim.reviewerPlaybook) || claim.reviewerPlaybook.length === 0) return;
+      if (grouped.has(claim.triggerType)) return;
+      grouped.set(claim.triggerType, claim.reviewerPlaybook.map((item) => item.step));
+    });
+    return Array.from(grouped.entries()).slice(0, 4);
+  }, [claims, reviewQueue]);
+
   const handleLogout = () => {
     clearToken();
     logout();
     router.push('/login');
+  };
+
+  const openClaim = (id: string) => {
+    router.push(`/team2/claims/${id}`);
+  };
+
+  const toggleBackfillTarget = (value: string) => {
+    setSelectedBackfillTargets((prev) => {
+      const exists = prev.includes(value);
+      if (exists) {
+        return prev.length === 1 ? prev : prev.filter((item) => item !== value);
+      }
+      return [...prev, value];
+    });
   };
 
   const runCycle = async () => {
@@ -176,23 +243,21 @@ export default function Team2OpsPage() {
     }
   };
 
-  const onApprove = async (id: string) => {
+  const runBackfill = async () => {
+    setRunningBackfill(true);
     try {
-      await apiClient.decideTeam2Review(id, { action: 'approve', remarks: 'Approved from admin dashboard' });
-      toast.success('Claim approved');
+      const result = await apiClient.runTeam2FraudBackfill({
+        limit: 100,
+        settlementStatuses: selectedBackfillTargets,
+        unscoredOnly: !includeScoredClaims,
+        olderThanHours,
+      });
+      toast.success(`Rescored ${result.rescored} claims across ${result.requestedStatuses?.join(', ') || 'selected states'}`);
       await load(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Approve failed');
-    }
-  };
-
-  const onReject = async (id: string) => {
-    try {
-      await apiClient.decideTeam2Review(id, { action: 'reject', remarks: 'Rejected from admin dashboard' });
-      toast.success('Claim rejected');
-      await load(true);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reject failed');
+      toast.error(err instanceof Error ? err.message : 'Could not rescore legacy claims');
+    } finally {
+      setRunningBackfill(false);
     }
   };
 
@@ -221,6 +286,10 @@ export default function Team2OpsPage() {
                 Scheduler: {scheduler?.started ? 'Running' : 'Stopped'}
                 {scheduler?.startedAt ? ` · started ${new Date(scheduler.startedAt).toLocaleTimeString('en-IN')}` : ''}
               </p>
+              <p className="mt-1 text-xs text-slate-300">
+                Stale pending rescoring every {Math.max(1, Math.round(Number(scheduler?.intervals.stalePendingRescoringMs || 0) / 60000))} min
+                {' '}after {scheduler?.intervals.stalePendingAgeHours || 0}h idle
+              </p>
             </div>
 
             <div className="flex gap-2">
@@ -230,12 +299,104 @@ export default function Team2OpsPage() {
               <Button variant="outline" onClick={runReconcile} disabled={runningReconcile} className="border-white/40 bg-white/10 text-white hover:bg-white/20">
                 {runningReconcile ? 'Reconciling...' : 'Run reconciliation'}
               </Button>
+              <Button variant="outline" onClick={runBackfill} disabled={runningBackfill} className="border-white/40 bg-white/10 text-white hover:bg-white/20">
+                {runningBackfill ? 'Rescoring...' : 'Run claim rescoring'}
+              </Button>
               <Button variant="outline" onClick={() => load(true)} disabled={refreshing} className="border-white/40 bg-white/10 text-white hover:bg-white/20">
                 {refreshing ? 'Refreshing...' : 'Refresh'}
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="ws-card border-0">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Legacy rescoring controls</h2>
+                  <p className="mt-1 text-sm text-slate-600">Target pending claims or older review states without forcing a broad re-run.</p>
+                </div>
+                <StatusChip status={includeScoredClaims ? 'under_review' : 'approved'} />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {BACKFILL_TARGETS.map((target) => {
+                  const active = selectedBackfillTargets.includes(target.value);
+                  return (
+                    <button
+                      key={target.value}
+                      type="button"
+                      onClick={() => toggleBackfillTarget(target.value)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      {target.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  <span className="block text-xs uppercase tracking-wide text-slate-500">Minimum age</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={720}
+                    value={olderThanHours}
+                    onChange={(event) => setOlderThanHours(Number(event.target.value || 0))}
+                    className="mt-2 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 outline-none"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setIncludeScoredClaims((prev) => !prev)}
+                  className={`rounded-xl border p-3 text-left transition ${includeScoredClaims ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+                >
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Scored claims</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    {includeScoredClaims ? 'Include already-scored claims' : 'Only backfill unscored claims'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">Use this when older review outcomes need a fresh model pass.</p>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="ws-card border-0">
+            <CardContent className="p-4">
+              <h2 className="text-base font-semibold text-slate-900">Reviewer playbooks</h2>
+
+              {loading ? (
+                <div className="mt-3 space-y-2">
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                </div>
+              ) : playbookGroups.length === 0 ? (
+                <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+                  Playbooks will appear as claims enter review with enriched lifecycle metadata.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {playbookGroups.map(([triggerType, steps]) => (
+                    <article key={triggerType} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium capitalize text-slate-900">{triggerType.replaceAll('_', ' ')}</p>
+                        <StatusChip status="under_review" />
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {steps.slice(0, 3).map((step) => (
+                          <p key={step} className="text-xs text-slate-700">{step}</p>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="ws-card border-0">
@@ -261,12 +422,18 @@ export default function Team2OpsPage() {
               ) : (
                 <div className="mt-3 space-y-2">
                   {fraudAlerts.slice(0, 4).map((alert) => (
-                    <article key={alert._id} className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <article
+                      key={alert._id}
+                      className="cursor-pointer rounded-xl border border-rose-200 bg-rose-50 p-3"
+                      onClick={() => openClaim(alert._id)}
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-rose-800">Claim {alert._id.slice(-8)}</p>
                         <StatusChip status={alert.settlementStatus || alert.status} />
                       </div>
-                      <p className="mt-1 text-xs text-rose-700">Fraud score: {(alert.fraudScore ?? 0).toFixed(2)} · {alert.reasonCode || 'No code'}</p>
+                      <p className="mt-1 text-xs text-rose-700">
+                        Fraud score: {(alert.fraudScore ?? 0).toFixed(2)} · {alert.reasonCode || 'No code'}
+                      </p>
                     </article>
                   ))}
                 </div>
@@ -275,7 +442,7 @@ export default function Team2OpsPage() {
           </Card>
         </section>
 
-        <AdminClaimsTable rows={claimRows} loading={loading} onApprove={onApprove} onReject={onReject} />
+        <AdminClaimsTable rows={claimRows} loading={loading} onOpen={openClaim} />
 
         <Card className="ws-card border-0">
           <CardContent className="p-4">

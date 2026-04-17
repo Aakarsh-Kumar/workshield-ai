@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from routes.risk import risk_bp
 from routes.fraud import fraud_bp
+from routes.chat import chat_bp
 from services.model_bundle import get_artifact_status, get_premium_artifact_status
 
 app = Flask(__name__)
@@ -12,6 +13,7 @@ CORS(app)
 # Register route blueprints
 app.register_blueprint(risk_bp)
 app.register_blueprint(fraud_bp)
+app.register_blueprint(chat_bp)
 
 
 @app.route('/health')

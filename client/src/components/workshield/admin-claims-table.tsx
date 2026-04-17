@@ -7,14 +7,17 @@ import { StatusChip } from './status-chip';
 export type AdminClaimRow = {
   id: string;
   triggerType: string;
+  verificationState?: string;
   status: string;
   amount: number;
   fraudScore: number | null;
+  fraudModelVersion?: string;
   reasonCode?: string;
   updatedAt?: string;
-  source: 'review' | 'payout';
+  source: 'review' | 'payout' | 'claim';
   attemptCount?: number;
   providerReference?: string;
+  workerLabel?: string;
 };
 
 type TabKey = 'all' | 'flagged' | 'approved';
@@ -30,6 +33,7 @@ function isApproved(status: string) {
 const SIMPLE_TRIGGER_LABEL: Record<string, string> = {
   rainfall: 'Rain',
   platform_outage: 'App down',
+  traffic_congestion: 'Traffic',
   vehicle_accident: 'Accident',
   hospitalization: 'Hospital',
 };
@@ -37,13 +41,11 @@ const SIMPLE_TRIGGER_LABEL: Record<string, string> = {
 export function AdminClaimsTable({
   rows,
   loading,
-  onApprove,
-  onReject,
+  onOpen,
 }: {
   rows: AdminClaimRow[];
   loading: boolean;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onOpen: (id: string) => void;
 }) {
   const [tab, setTab] = useState<TabKey>('all');
   const [query, setQuery] = useState('');
@@ -74,7 +76,8 @@ export function AdminClaimsTable({
     <div className="rounded-2xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
         <div className="space-y-2">
-          <h3 className="text-base font-semibold text-slate-900">Claim approvals</h3>
+          <h3 className="text-base font-semibold text-slate-900">Claims needing attention</h3>
+          <p className="text-xs text-slate-500">Open a claim to review evidence and record one final decision.</p>
           <div className="flex flex-wrap gap-2">
             <TabButton active={tab === 'all'} onClick={() => setTab('all')} label="All" />
             <TabButton active={tab === 'flagged'} onClick={() => setTab('flagged')} label="Flagged" />
@@ -96,6 +99,7 @@ export function AdminClaimsTable({
             <tr className="bg-slate-50 text-left text-xs uppercase tracking-[0.08em] text-slate-500">
               <th className="px-4 py-3">Claim</th>
               <th className="px-4 py-3">Event</th>
+              <th className="px-4 py-3">Verification</th>
               <th className="px-4 py-3">Risk</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Amount</th>
@@ -106,18 +110,17 @@ export function AdminClaimsTable({
             {loading ? (
               [1, 2, 3, 4].map((i) => (
                 <tr key={i} className="border-t border-slate-100">
-                  <td className="px-4 py-3" colSpan={6}>
+                  <td className="px-4 py-3" colSpan={7}>
                     <div className="h-7 w-full animate-pulse rounded bg-slate-100" />
                   </td>
                 </tr>
               ))
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={6}>No claims found</td>
+                <td className="px-4 py-8 text-center text-slate-500" colSpan={7}>No claims found</td>
               </tr>
             ) : (
               filtered.map((row) => {
-                const canReview = row.source === 'review';
                 const expanded = expandedId === row.id;
 
                 return (
@@ -130,34 +133,37 @@ export function AdminClaimsTable({
                           className="text-left"
                         >
                           <p className="font-medium text-slate-900">{row.id.slice(-8)}</p>
-                          <p className="text-xs text-slate-500">{row.source === 'review' ? 'Manual review' : 'Payout stream'}</p>
+                          <p className="text-xs text-slate-500">
+                            {row.source === 'review' ? 'Manual review' : row.source === 'claim' ? (row.workerLabel || 'Latest claim') : 'Payout stream'}
+                          </p>
                         </button>
                       </td>
                       <td className="px-4 py-3 align-top text-slate-700">{SIMPLE_TRIGGER_LABEL[row.triggerType] || row.triggerType}</td>
                       <td className="px-4 py-3 align-top">
+                        <StatusChip status={row.verificationState || 'pending'} />
+                      </td>
+                      <td className="px-4 py-3 align-top">
                         <span className={`rounded-md px-2 py-1 text-xs font-semibold ${riskTone(row.fraudScore)}`}>
-                          {row.fraudScore == null ? 'NA' : row.fraudScore.toFixed(2)}
+                          {row.fraudScore == null || !row.fraudModelVersion ? 'NA' : row.fraudScore.toFixed(2)}
                         </span>
                       </td>
                       <td className="px-4 py-3 align-top"><StatusChip status={row.status} /></td>
                       <td className="px-4 py-3 align-top text-slate-700">INR {row.amount.toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 align-top">
-                        {canReview ? (
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => onReject(row.id)}>Reject</Button>
-                            <Button size="sm" className="h-8 px-2 text-xs" onClick={() => onApprove(row.id)}>Approve</Button>
-                          </div>
-                        ) : (
-                          <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                            {expanded ? 'Hide' : 'View'}
+                        <div className="flex gap-1">
+                          <Button size="sm" className="h-8 px-2 text-xs" onClick={() => onOpen(row.id)}>
+                            {row.source === 'review' ? 'Review claim' : 'Open'}
                           </Button>
-                        )}
+                          <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setExpandedId(expanded ? null : row.id)}>
+                            {expanded ? 'Hide' : 'Quick view'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
 
                     {expanded && (
                       <tr className="border-t border-slate-100 bg-slate-50/60">
-                        <td colSpan={6} className="px-4 py-3">
+                        <td colSpan={7} className="px-4 py-3">
                           <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
                             <InfoBox label="Reason code" value={row.reasonCode || 'NA'} />
                             <InfoBox label="Attempt count" value={String(row.attemptCount || 0)} />

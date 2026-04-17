@@ -1,6 +1,7 @@
 const axios = require('axios');
 const Policy = require('../models/Policy');
 const User = require('../models/User');
+const { getLocationRiskMultiplier } = require('./riskProfileService');
 const {
   DEFAULT_POLICY_EXCLUSIONS,
   DEFAULT_UNDERWRITING_GUIDELINES,
@@ -8,68 +9,103 @@ const {
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:5001';
 
-/**
- * defaultTriggers — standard parametric trigger set for Indian gig delivery workers.
- *
- * Trigger types and their economic rationale:
- *  - rainfall:         Heavy rain (>50mm) prevents safe delivery, causing income loss
- *  - vehicle_accident: Any accident = total income loss + medical cost
- *  - platform_outage:  >4hr outage on Swiggy/Zomato/Blinkit = lost order window
- *  - hospitalization:  Any inpatient admission = complete income stoppage
- */
-const defaultTriggers = () => [
-  { type: 'rainfall', threshold: 50, payoutRatio: 0.5 },       // >50mm → 50% payout
-  { type: 'vehicle_accident', threshold: 1, payoutRatio: 1.0 }, // any accident → full payout
-  { type: 'platform_outage', threshold: 4, payoutRatio: 0.3 },  // >4hrs outage → 30% payout
-  { type: 'hospitalization', threshold: 1, payoutRatio: 1.0 },  // hospitalized → full payout
-];
+const PLAN_TIERS = Object.freeze([
+  {
+    id: 'basic',
+    minCoverage: 1000,
+    maxCoverage: 1999,
+    triggers: [
+      { type: 'rainfall', threshold: 50, payoutRatio: 0.45 },
+      { type: 'platform_outage', threshold: 4, payoutRatio: 0.25 },
+    ],
+  },
+  {
+    id: 'plus',
+    minCoverage: 2000,
+    maxCoverage: 4999,
+    triggers: [
+      { type: 'rainfall', threshold: 50, payoutRatio: 0.5 },
+      { type: 'platform_outage', threshold: 4, payoutRatio: 0.3 },
+      { type: 'vehicle_accident', threshold: 1, payoutRatio: 0.75 },
+      { type: 'hospitalization', threshold: 1, payoutRatio: 0.75 },
+    ],
+  },
+  {
+    id: 'pro',
+    minCoverage: 5000,
+    maxCoverage: Number.POSITIVE_INFINITY,
+    triggers: [
+      { type: 'rainfall', threshold: 50, payoutRatio: 0.5 },
+      { type: 'platform_outage', threshold: 4, payoutRatio: 0.3 },
+      { type: 'vehicle_accident', threshold: 1, payoutRatio: 1.0 },
+      { type: 'hospitalization', threshold: 1, payoutRatio: 1.0 },
+      { type: 'traffic_congestion', threshold: 45, payoutRatio: 0.25 },
+    ],
+  },
+]);
 
-/**
- * getPremiumPrediction — calls the Python AI service for an actuarial premium quote.
- * Falls back to a rule-based calculation if the AI service is unavailable.
- *
- * @param {number} weeklyDeliveries
- * @param {string} platform
- * @param {number} riskScore  0–1
- * @returns {Promise<number>} premium in INR
- */
-const getPremiumPrediction = async (weeklyDeliveries, platform, riskScore) => {
+const getTierForCoverage = (coverageAmount) => PLAN_TIERS.find(
+  (tier) => coverageAmount >= tier.minCoverage && coverageAmount <= tier.maxCoverage,
+) || PLAN_TIERS[PLAN_TIERS.length - 1];
+
+const getTriggersForCoverage = (coverageAmount) => getTierForCoverage(Number(coverageAmount || 0)).triggers;
+
+const normalizeTriggerConfig = (coverageAmount, triggerConfig) => {
+  const baseTriggers = getTriggersForCoverage(coverageAmount);
+  if (!Array.isArray(triggerConfig) || triggerConfig.length === 0) {
+    return baseTriggers;
+  }
+
+  const allowedTypes = new Set(baseTriggers.map((trigger) => trigger.type));
+  return triggerConfig.filter((trigger) => allowedTypes.has(trigger.type));
+};
+
+const getPremiumPrediction = async (weeklyDeliveries, platform, riskScore, locationRiskMultiplier = 1.0, coverageAmount = 1000) => {
   try {
     const { data } = await axios.post(
       `${AI_SERVICE_URL}/predict`,
-      { weekly_deliveries: weeklyDeliveries, platform, risk_score: riskScore },
+      {
+        weekly_deliveries: weeklyDeliveries,
+        platform,
+        risk_score: riskScore,
+        location_risk_multiplier: locationRiskMultiplier,
+        coverage_amount: coverageAmount,
+      },
       { timeout: 5000 },
     );
-    return data.premium;
+    const predicted = Number(data.premium);
+    if (Number.isFinite(predicted) && predicted > 0) {
+      const coverageFactor = Math.max(1, Number(coverageAmount || 1000) / 1000);
+      return Number((predicted * (0.85 + coverageFactor * 0.15)).toFixed(2));
+    }
+    return ruleBasedPremium(weeklyDeliveries, riskScore, locationRiskMultiplier, coverageAmount);
   } catch (err) {
-    console.warn('⚠️  AI premium prediction unavailable, using rule-based fallback:', err.message);
-    return ruleBasedPremium(weeklyDeliveries, riskScore);
+    console.warn('AI premium prediction unavailable, using rule-based fallback:', err.message);
+    return ruleBasedPremium(weeklyDeliveries, riskScore, locationRiskMultiplier, coverageAmount);
   }
 };
 
-/** Simple actuarial fallback when AI service is down */
-const ruleBasedPremium = (weeklyDeliveries, riskScore) => {
-  const base = 45;
+const ruleBasedPremium = (weeklyDeliveries, riskScore, locationRiskMultiplier = 1.0, coverageAmount = 1000) => {
+  const base = 18;
   const loadFactor = weeklyDeliveries > 40 ? 1.6 : weeklyDeliveries > 20 ? 1.3 : 1.0;
-  return Math.round(Math.min(base * loadFactor * (1 + riskScore * 0.5), 500));
+  const multiplier = Math.max(0.5, Math.min(Number(locationRiskMultiplier) || 1.0, 3.0));
+  const coverageFactor = Math.max(1, Number(coverageAmount || 1000) / 1000);
+  return Number(Math.min(base * loadFactor * (1 + riskScore * 0.5) * multiplier * coverageFactor, 500).toFixed(2));
 };
 
-/**
- * createPolicy — issues a new parametric policy after fetching an AI premium quote.
- *
- * @param {string} userId
- * @param {{ type, coverageAmount, triggerConfig }} policyData
- * @returns {Promise<Policy>}
- */
 const createPolicy = async (userId, { type = 'weekly', coverageAmount, triggerConfig }) => {
   const user = await User.findById(userId);
   if (!user) throw new Error('User not found');
 
-  // Fetch AI-powered premium
+  const { locationRiskMultiplier } = await getLocationRiskMultiplier(userId)
+    .catch(() => ({ locationRiskMultiplier: 1.0 }));
+
   const premium = await getPremiumPrediction(
     user.weeklyDeliveries,
     user.platform,
     user.riskScore,
+    locationRiskMultiplier,
+    coverageAmount,
   );
 
   const now = new Date();
@@ -83,7 +119,7 @@ const createPolicy = async (userId, { type = 'weekly', coverageAmount, triggerCo
     premium,
     startDate: now,
     endDate,
-    triggers: triggerConfig || defaultTriggers(),
+    triggers: normalizeTriggerConfig(coverageAmount, triggerConfig),
     aiRiskScore: user.riskScore,
     weeklyDeliveriesAtIssuance: user.weeklyDeliveries,
     platform: user.platform,
@@ -96,4 +132,11 @@ const createPolicy = async (userId, { type = 'weekly', coverageAmount, triggerCo
   return policy;
 };
 
-module.exports = { createPolicy, getPremiumPrediction };
+module.exports = {
+  PLAN_TIERS,
+  createPolicy,
+  getPremiumPrediction,
+  getTriggersForCoverage,
+  getTierForCoverage,
+  normalizeTriggerConfig,
+};

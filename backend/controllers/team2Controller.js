@@ -4,7 +4,9 @@ const { listManualReviewQueue, applyManualReviewDecision } = require('../service
 const { buildOpsSummary } = require('../services/team2/opsSummaryService');
 const { runDailyReconciliation } = require('../services/team2/reconciliationService');
 const { getSchedulerStatus } = require('../services/team2/schedulerService');
+const { runClaimFraudBackfill } = require('../services/team2/claimFraudBackfillService');
 const AuditLog = require('../models/AuditLog');
+const { getAdminClaimDetail } = require('../services/team2/claimDetailService');
 
 exports.runPayoutCycle = async (req, res) => {
   try {
@@ -115,5 +117,29 @@ exports.getAuditLogs = async (req, res) => {
   } catch (err) {
     console.error('getAuditLogs error:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch audit logs' });
+  }
+};
+
+exports.runClaimFraudBackfill = async (req, res) => {
+  try {
+    const { limit, settlementStatuses, unscoredOnly, olderThanHours } = req.body || {};
+    const result = await runClaimFraudBackfill({ limit, settlementStatuses, unscoredOnly, olderThanHours });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('runClaimFraudBackfill error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to rescore legacy claims' });
+  }
+};
+
+exports.getAdminClaimDetail = async (req, res) => {
+  try {
+    const detail = await getAdminClaimDetail(req.params.id);
+    if (!detail) {
+      return res.status(404).json({ success: false, message: 'Claim not found' });
+    }
+    return res.json({ success: true, ...detail });
+  } catch (err) {
+    console.error('getAdminClaimDetail error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch claim detail' });
   }
 };

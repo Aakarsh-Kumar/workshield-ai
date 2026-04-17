@@ -1,6 +1,6 @@
 const { body, param, query } = require('express-validator');
 
-const TRIGGER_TYPES = ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization'];
+const TRIGGER_TYPES = ['rainfall', 'vehicle_accident', 'platform_outage', 'hospitalization', 'traffic_congestion'];
 
 const policyIdParamSchema = [param('id').isMongoId().withMessage('valid policy id is required')];
 
@@ -17,6 +17,7 @@ const quoteSchema = [
   body('weeklyDeliveries').isInt({ min: 0, max: 1000 }).withMessage('weeklyDeliveries must be between 0 and 1000'),
   body('platform').isIn(['swiggy', 'zomato', 'blinkit', 'dunzo', 'other']).withMessage('invalid platform'),
   body('riskScore').optional({ nullable: true }).isFloat({ min: 0, max: 1 }).withMessage('riskScore must be between 0 and 1'),
+  body('coverageAmount').isFloat({ min: 100, max: 10000000 }).withMessage('coverageAmount must be between 100 and 10000000'),
 ];
 
 const weatherLookupSchema = [

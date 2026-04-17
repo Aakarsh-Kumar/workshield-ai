@@ -6,6 +6,8 @@ const { validate } = require('../middleware/requestValidation');
 const { team2OpsLimiter } = require('../middleware/rateLimiters');
 const {
 	runPayoutCycleSchema,
+	claimFraudBackfillSchema,
+	team2ClaimDetailSchema,
 	manualReviewDecisionSchema,
 	payoutAttemptsQuerySchema,
 	manualReviewQueueQuerySchema,
@@ -17,7 +19,9 @@ router.use(protect, requireAdmin);
 router.get('/ops/summary', team2Controller.getOpsSummary);
 router.get('/ops/scheduler', team2Controller.getSchedulerStatus);
 router.post('/ops/reconcile', team2OpsLimiter, team2Controller.runReconciliation);
+router.post('/ops/backfill-fraud', team2OpsLimiter, validate(claimFraudBackfillSchema), team2Controller.runClaimFraudBackfill);
 router.get('/ops/audit-logs', validate(auditLogsQuerySchema), team2Controller.getAuditLogs);
+router.get('/claims/:id', validate(team2ClaimDetailSchema), team2Controller.getAdminClaimDetail);
 router.get('/review-queue', validate(manualReviewQueueQuerySchema), team2Controller.getManualReviewQueue);
 router.post('/review/:id/decision', team2OpsLimiter, validate(manualReviewDecisionSchema), team2Controller.applyManualReviewDecision);
 router.post('/payouts/run', team2OpsLimiter, validate(runPayoutCycleSchema), team2Controller.runPayoutCycle);

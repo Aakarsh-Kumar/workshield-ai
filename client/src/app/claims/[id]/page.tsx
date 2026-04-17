@@ -60,6 +60,9 @@ export default function ClaimDetailPage() {
   const decision = useMemo(() => getDecisionCopy(claim?.reasonCode), [claim?.reasonCode]);
   const settlement = claim?.settlementStatus || claim?.status || 'pending';
   const progress = settlementProgress(settlement);
+  const lifecycle = claim?.lifecycle;
+  const reviewerReasons = claim?.reviewerReasons || [];
+  const fraudTimeline = claim?.fraudTimeline || [];
 
   const handleLogout = () => {
     clearToken();
@@ -112,8 +115,8 @@ export default function ClaimDetailPage() {
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <SignalCard label="Fraud score" value={(claim.fraudScore ?? 0).toFixed(3)} />
-                  <SignalCard label="Settlement" value={settlement} />
+                  <SignalCard label="Fraud score" value={claim.fraudModelVersion ? (claim.fraudScore ?? 0).toFixed(3) : 'NA'} />
+                  <SignalCard label="Verification" value={claim.verificationState || 'unknown'} />
                   <SignalCard label="Decision code" value={claim.reasonCode || 'UNSPECIFIED'} mono />
                 </div>
               </CardContent>
@@ -132,6 +135,12 @@ export default function ClaimDetailPage() {
                     <ProgressBox label="Paid" done={progress.paid} />
                   </div>
 
+                  <div className="mt-4 grid gap-2 md:grid-cols-3">
+                    <LifecycleTrack label="Event verification" value={lifecycle?.eventVerification || claim.verificationState || 'unknown'} />
+                    <LifecycleTrack label="Fraud review" value={lifecycle?.fraudReview || claim.fraudState || 'unknown'} />
+                    <LifecycleTrack label="Payout orchestration" value={lifecycle?.payoutOrchestration || claim.payoutState || 'unknown'} />
+                  </div>
+
                   <Separator className="my-4" />
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -148,6 +157,21 @@ export default function ClaimDetailPage() {
                     <MetaRow label="Created at" value={new Date(claim.createdAt).toLocaleString('en-IN')} />
                     <MetaRow label="Processed at" value={claim.processedAt ? new Date(claim.processedAt).toLocaleString('en-IN') : 'Pending'} />
                   </div>
+
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Fraud and verification timeline</h3>
+                    <div className="mt-3 space-y-2">
+                      {fraudTimeline.map((event) => (
+                        <div key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-slate-900">{event.title}</p>
+                            <p className="text-xs text-slate-500">{event.at ? new Date(event.at).toLocaleString('en-IN') : 'Pending'}</p>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{event.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -161,6 +185,22 @@ export default function ClaimDetailPage() {
                     <AuditLine label="Reason code" value={claim.reasonCode || '--'} mono />
                     <AuditLine label="Contract version" value={claim.responseContractVersion || '--'} mono />
                     <AuditLine label="Payout eligibility" value={String(Boolean(claim.payoutEligibility))} />
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Reviewer rationale</p>
+                    <div className="mt-2 space-y-2">
+                      {reviewerReasons.length === 0 ? (
+                        <p className="text-sm text-slate-600">No additional reviewer notes yet.</p>
+                      ) : (
+                        reviewerReasons.map((reason, index) => (
+                          <div key={`${reason.type}-${index}`} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <p className="text-xs uppercase tracking-wide text-slate-500">{reason.label}</p>
+                            <p className="mt-1 text-sm text-slate-800">{reason.detail}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -196,6 +236,15 @@ function ProgressBox({ label, done }: { label: string; done: boolean }) {
   return (
     <div className={`rounded-lg border p-2 text-center ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
       {label}
+    </div>
+  );
+}
+
+function LifecycleTrack({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold capitalize text-slate-900">{value.replaceAll('_', ' ')}</p>
     </div>
   );
 }

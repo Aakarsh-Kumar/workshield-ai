@@ -14,6 +14,16 @@ const STATUS_THEME: Record<string, string> = {
   failed_terminal: 'bg-rose-100 text-rose-800 border-rose-200',
   failed_transient: 'bg-orange-100 text-orange-800 border-orange-200',
   conflict: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
+  verified: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  manual_review: 'bg-orange-100 text-orange-800 border-orange-200',
+  threshold_not_met: 'bg-amber-100 text-amber-800 border-amber-200',
+  evidence_pending: 'bg-slate-100 text-slate-700 border-slate-200',
+  blocked: 'bg-rose-100 text-rose-800 border-rose-200',
+  not_scored: 'bg-slate-100 text-slate-700 border-slate-200',
+  cleared: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  review_hold: 'bg-orange-100 text-orange-800 border-orange-200',
+  ready: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  not_ready: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
 export function StatusChip({ status }: { status: string }) {

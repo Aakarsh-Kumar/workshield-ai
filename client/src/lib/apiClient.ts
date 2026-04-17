@@ -1,9 +1,32 @@
 import { getToken } from './auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api';
-const AI_BASE = process.env.NEXT_PUBLIC_AI_BASE ?? '/ai';
+function resolveServiceBase(envValue: string | undefined, fallbackPath: '/api' | '/ai') {
+  const configuredBase = envValue?.trim();
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+  if (!configuredBase) {
+    return fallbackPath;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const currentOrigin = window.location.origin;
+      const targetUrl = new URL(configuredBase, currentOrigin);
+      const isConfiguredLocalhost = ['localhost', '127.0.0.1'].includes(targetUrl.hostname);
+      const isCurrentLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+      if (isConfiguredLocalhost && !isCurrentLocalhost) {
+        return fallbackPath;
+      }
+    } catch {
+      return fallbackPath;
+    }
+  }
+
+  return configuredBase;
+}
+
+const API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_API_BASE, '/api');
+const AI_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_AI_BASE, '/ai');
 
 export interface User {
   id: string;
@@ -39,7 +62,13 @@ export interface Policy {
 export interface Claim {
   _id: string;
   policyId: string | Policy;
-  triggerType: 'rainfall' | 'vehicle_accident' | 'platform_outage' | 'hospitalization';
+  userId?: string | {
+    _id: string;
+    name?: string;
+    email?: string;
+    platform?: string;
+  };
+  triggerType: 'rainfall' | 'vehicle_accident' | 'platform_outage' | 'hospitalization' | 'traffic_congestion';
   triggerValue: number;
   claimAmount: number;
   approvedAmount?: number;
@@ -58,12 +87,121 @@ export interface Claim {
   remarks?: string;
   processedAt?: string;
   createdAt: string;
+  documents?: Array<{
+    content_base64?: string;
+    mime_type?: string;
+    file_name?: string;
+  }>;
+  verificationState?: 'verified' | 'manual_review' | 'blocked' | 'threshold_not_met' | 'evidence_pending';
+  fraudState?: 'not_scored' | 'cleared' | 'soft_flag' | 'hard_block';
+  payoutState?: 'paid' | 'ready' | 'review_hold' | 'blocked' | 'not_ready';
+  reviewerReasons?: Array<{
+    type: string;
+    label: string;
+    detail: string;
+    code?: string;
+  }>;
+  reviewerPlaybook?: Array<{
+    id: string;
+    step: string;
+  }>;
+  fraudTimeline?: Array<{
+    id: string;
+    stage: string;
+    at?: string;
+    title: string;
+    detail: string;
+  }>;
+  lifecycle?: {
+    eventVerification: string;
+    fraudReview: string;
+    payoutOrchestration: string;
+  };
+}
+
+export interface ClaimDocumentPayload {
+  content_base64: string;
+  mime_type: string;
+  file_name?: string;
 }
 
 export interface PremiumPrediction {
   premium: number;
   currency: string;
   breakdown: Record<string, unknown>;
+}
+
+export interface HazardZoneSummary {
+  zoneId: string;
+  name: string;
+  city?: string;
+  notes?: string;
+  hazardType: 'FLOOD' | 'CYCLONE' | 'HEATWAVE' | 'LANDSLIDE';
+  riskMultiplier: number;
+  isActive: boolean;
+  boundary?: {
+    type: 'Polygon' | 'MultiPolygon';
+    coordinates: unknown;
+  };
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+export interface PremiumQuote {
+  success: boolean;
+  premium: number;
+  currency: string;
+  locationRiskMultiplier: number;
+  hazardZonesDetected: Array<{
+    zoneId: string;
+    hazardType: string;
+    name: string;
+  }>;
+  note?: string;
+}
+
+export interface ZoneValidationResult {
+  success: boolean;
+  inZone: boolean | null;
+  pingCount: number;
+  matchedPing?: {
+    _id: string;
+    timestamp: string;
+    accuracy: number;
+    location: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+  } | null;
+}
+
+export interface LocationPingCountResult {
+  success: boolean;
+  pingCount: number;
+  timeWindow: {
+    start: string;
+    end: string;
+  };
+}
+
+export interface HazardEventResult {
+  zoneId: string;
+  triggerType: string;
+  triggerValue: number;
+  workersFound: number;
+  workersWithPolicies: number;
+  claimsCreated: number;
+  claimsSkipped: number;
+  errors: number;
+  details: Array<{
+    workerId: string | null;
+    policyId: string | null;
+    claimId: string | null;
+    status: string;
+    reason?: string;
+    claimAmount?: number;
+    settlementStatus?: string;
+  }>;
 }
 
 export interface Team2OpsSummary {
@@ -80,9 +218,12 @@ export interface Team2SchedulerStatus {
   startedAt: string | null;
   intervals: {
     payoutCycleMs: number;
+    stalePendingRescoringMs?: number;
     healthCheckMs: number;
     reconciliationMs: number;
     batchLimit: number;
+    stalePendingBatchLimit?: number;
+    stalePendingAgeHours?: number;
   };
 }
 
@@ -104,6 +245,11 @@ export interface Team2PayoutAttempt {
   providerMode?: string;
   nextRetryAt?: string;
   updatedAt: string;
+  timeline?: Array<{
+    at?: string;
+    event: string;
+    detail?: Record<string, unknown>;
+  }>;
   lastError?: {
     code?: string;
     message?: string;
@@ -114,6 +260,21 @@ export interface ChatMessage {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
   timestamp: string;
+}
+
+export interface Team2ManualReviewAction {
+  _id: string;
+  action: 'approve' | 'reject';
+  reason?: string;
+  approvedAmount?: number;
+  actorUserLabel?: string;
+  createdAt: string;
+  snapshot?: {
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+    reasonCode?: string;
+    reasonDetail?: string;
+  };
 }
 
 export interface Team2AuditLog {
@@ -131,13 +292,39 @@ export interface Team2AuditLog {
   createdAt: string;
 }
 
-interface ApiResponse<T> {
+export interface Team2BackfillResult {
   success: boolean;
-  message?: string;
-  data?: T;
+  requestedStatuses?: string[];
+  scanned: number;
+  rescored: number;
+  errors: number;
+  results: Array<{
+    claimId: string;
+    status: string;
+    settlementStatus?: string;
+    fraudScore?: number;
+    verdict?: string;
+    message?: string;
+  }>;
 }
 
-// ── HTTP helper ───────────────────────────────────────────────────────────────
+export interface Team2AdminClaimDetail {
+  success: boolean;
+  claim: Claim;
+  payoutAttempt: Team2PayoutAttempt | null;
+  manualReviewActions: Team2ManualReviewAction[];
+}
+
+export interface ChatMessagePayload {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatAssistantResponse {
+  reply: string;
+  suggested_actions: string[];
+  model: string;
+}
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -173,11 +360,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-// ── API client ────────────────────────────────────────────────────────────────
-
 const apiClient = {
-  // ── Auth ──────────────────────────────────────────────────────────────────
-
   login: (email: string, password: string) =>
     request<{ success: boolean; token: string; user: User }>(
       `${API_BASE}/auth/login`,
@@ -200,8 +383,6 @@ const apiClient = {
   getMe: () =>
     request<{ success: boolean; user: User }>(`${API_BASE}/auth/me`),
 
-  // ── Policies ──────────────────────────────────────────────────────────────
-
   getPolicies: (status?: string) =>
     request<{ success: boolean; policies: Policy[] }>(
       `${API_BASE}/policies${status ? `?status=${status}` : ''}`,
@@ -220,18 +401,22 @@ const apiClient = {
       { method: 'POST', body: JSON.stringify(payload) },
     ),
 
-  getQuote: (weeklyDeliveries: number, platform: string, riskScore = 0.5) =>
-    request<{ success: boolean; premium: number; currency: string }>(
+  getQuote: (weeklyDeliveries: number, platform: string, coverageAmount: number, riskScore = 0.5) =>
+    request<PremiumQuote>(
       `${API_BASE}/policies/quote`,
-      { method: 'POST', body: JSON.stringify({ weeklyDeliveries, platform, riskScore }) },
+      { method: 'POST', body: JSON.stringify({ weeklyDeliveries, platform, coverageAmount, riskScore }) },
     ),
-
-  // ── Claims ────────────────────────────────────────────────────────────────
 
   getClaims: (status?: string) =>
     request<{ success: boolean; claims: Claim[] }>(
       `${API_BASE}/claims${status ? `?status=${status}` : ''}`,
     ),
+
+  getAdminClaims: (status?: string) => {
+    const query = new URLSearchParams({ scope: 'all' });
+    if (status) query.set('status', status);
+    return request<{ success: boolean; claims: Claim[] }>(`${API_BASE}/claims?${query.toString()}`);
+  },
 
   getClaim: (id: string) =>
     request<{ success: boolean; claim: Claim }>(`${API_BASE}/claims/${id}`),
@@ -239,16 +424,16 @@ const apiClient = {
   createClaim: (payload: {
     policyId: string;
     triggerType: string;
-    triggerValue: number;
-    documents?: string[];
+    triggerValue?: number;
+    documents?: ClaimDocumentPayload[];
+    eventPolygon?: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown };
+    timeWindow?: { start: string; end: string };
+    weatherLookup?: { latitude: number; longitude: number; observedAt?: string };
   }) =>
     request<{ success: boolean; claim: Claim }>(
       `${API_BASE}/claims`,
       { method: 'POST', body: JSON.stringify(payload) },
     ),
-
-  // ── AI Service (via NGINX /ai proxy) ──────────────────────────────────────
-  // Frontend calls /ai/predict → NGINX strips /ai prefix → Flask sees /predict
 
   predictPremium: (weeklyDeliveries: number, platform: string, riskScore: number) =>
     request<PremiumPrediction>(
@@ -259,7 +444,15 @@ const apiClient = {
       },
     ),
 
-  // ── Team 2 Ops (admin only) ─────────────────────────────────────────────
+  chatAssistant: (payload: {
+    messages: ChatMessagePayload[];
+    user_context?: Record<string, unknown>;
+    intent_context?: Record<string, unknown>;
+  }) =>
+    request<ChatAssistantResponse>(
+      `${AI_BASE}/chat`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
 
   getTeam2OpsSummary: () =>
     request<{ success: boolean; summary: Team2OpsSummary }>(`${API_BASE}/team2/ops/summary`),
@@ -270,10 +463,7 @@ const apiClient = {
   runTeam2PayoutCycle: (limit = 50) =>
     request<{ success: boolean; scanned: number; summary: Record<string, number> }>(
       `${API_BASE}/team2/payouts/run`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ limit }),
-      },
+      { method: 'POST', body: JSON.stringify({ limit }) },
     ),
 
   runTeam2Reconciliation: () =>
@@ -288,6 +478,20 @@ const apiClient = {
       };
     }>(`${API_BASE}/team2/ops/reconcile`, { method: 'POST', body: JSON.stringify({}) }),
 
+  runTeam2FraudBackfill: (payload: {
+    limit?: number;
+    settlementStatuses?: string[];
+    unscoredOnly?: boolean;
+    olderThanHours?: number;
+  } = {}) =>
+    request<Team2BackfillResult>(
+      `${API_BASE}/team2/ops/backfill-fraud`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  getTeam2ClaimDetail: (id: string) =>
+    request<Team2AdminClaimDetail>(`${API_BASE}/team2/claims/${id}`),
+
   getTeam2ReviewQueue: (limit = 50) =>
     request<{ success: boolean; queue: Claim[] }>(`${API_BASE}/team2/review-queue?limit=${limit}`),
 
@@ -297,10 +501,7 @@ const apiClient = {
   ) =>
     request<{ success: boolean; claim: Claim }>(
       `${API_BASE}/team2/review/${claimId}/decision`,
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
+      { method: 'POST', body: JSON.stringify(payload) },
     ),
 
   getTeam2PayoutAttempts: (status?: string, limit = 50) => {
@@ -331,6 +532,57 @@ const apiClient = {
       `${API_BASE}/chat/message`,
       { method: 'POST', body: JSON.stringify({ message }) },
     ),
+
+  listHazardZones: (filters?: { hazardType?: string; isActive?: boolean }) => {
+    const query = new URLSearchParams();
+    if (filters?.hazardType) query.set('hazardType', filters.hazardType);
+    if (filters?.isActive !== undefined) query.set('isActive', String(filters.isActive));
+    return request<{ success: boolean; zones: HazardZoneSummary[] }>(
+      `${API_BASE}/location/hazard-zones${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+  },
+
+  upsertHazardZone: (payload: {
+    zoneId: string;
+    name: string;
+    hazardType: HazardZoneSummary['hazardType'];
+    boundary: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown };
+    riskMultiplier?: number;
+    isActive?: boolean;
+    city?: string;
+    notes?: string;
+  }) =>
+    request<{ success: boolean; zone: HazardZoneSummary }>(
+      `${API_BASE}/location/hazard-zones`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  validateWorkerZone: (payload: {
+    workerId: string;
+    eventPolygon: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown };
+    timeWindow: { start: string; end: string };
+  }) =>
+    request<ZoneValidationResult>(
+      `${API_BASE}/location/validate-zone`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  processHazardEvent: (payload: {
+    zoneId: string;
+    triggerType: Claim['triggerType'];
+    triggerValue: number;
+    timeWindow: { start: string; end: string };
+    eventMeta?: Record<string, unknown>;
+  }) =>
+    request<{ success: boolean; result: HazardEventResult }>(
+      `${API_BASE}/location/hazard-event`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  getLocationPingCount: (start: string, end: string) => {
+    const query = new URLSearchParams({ start, end });
+    return request<LocationPingCountResult>(`${API_BASE}/location/pings/count?${query.toString()}`);
+  },
 };
 
 export default apiClient;

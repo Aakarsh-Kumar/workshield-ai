@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   mongo:
     image: mongo:7
@@ -33,6 +31,8 @@ services:
       AI_SERVICE_URL: http://ai-service:5001
       CLIENT_URL: https://workshield.aakarsh.xyz
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TRAFFIC_API_MODE: ${TRAFFIC_API_MODE:-live}
+      TOMTOM_TRAFFIC_KEY: ${TOMTOM_TRAFFIC_KEY}
     expose:
       - "4000"
     networks:
@@ -45,6 +45,8 @@ services:
     restart: unless-stopped
     environment:
       WORKSHIELD_EXPORT_ROOT: /ml-export
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.0-flash-lite}
     volumes:
       - ./workshield_export:/ml-export:ro
     expose:
@@ -55,11 +57,18 @@ services:
   client:
     build:
       context: ./client
+      args:
+        BACKEND_URL: http://backend:4000
+        AI_SERVICE_URL: http://ai-service:5001
+        NEXT_PUBLIC_API_BASE: /api
+        NEXT_PUBLIC_AI_BASE: /ai
     container_name: workshield-client
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_BASE: http://localhost/api
-      NEXT_PUBLIC_AI_BASE: http://localhost/ai
+      BACKEND_URL: http://backend:4000
+      AI_SERVICE_URL: http://ai-service:5001
+      NEXT_PUBLIC_API_BASE: /api
+      NEXT_PUBLIC_AI_BASE: /ai
     depends_on:
       - backend
     expose:

@@ -17,7 +17,16 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ARG BACKEND_URL=http://backend:4000
+ARG AI_SERVICE_URL=http://ai-service:5001
+ARG NEXT_PUBLIC_API_BASE=/api
+ARG NEXT_PUBLIC_AI_BASE=/ai
+
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV BACKEND_URL=$BACKEND_URL
+ENV AI_SERVICE_URL=$AI_SERVICE_URL
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_AI_BASE=$NEXT_PUBLIC_AI_BASE
 
 RUN npm run build
 
@@ -27,6 +36,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV BACKEND_URL=http://backend:4000
+ENV AI_SERVICE_URL=http://ai-service:5001
+ENV NEXT_PUBLIC_API_BASE=/api
+ENV NEXT_PUBLIC_AI_BASE=/ai
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 

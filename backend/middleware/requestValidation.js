@@ -8,14 +8,16 @@ const validate = (rules) => [
       return next();
     }
 
+    const normalizedErrors = errors.array().map((err) => ({
+      field: err.path,
+      message: err.msg,
+      value: err.value,
+    }));
+
     return res.status(422).json({
       success: false,
-      message: 'Validation failed',
-      errors: errors.array().map((err) => ({
-        field: err.path,
-        message: err.msg,
-        value: err.value,
-      })),
+      message: normalizedErrors[0]?.message || 'Validation failed',
+      errors: normalizedErrors,
     });
   },
 ];

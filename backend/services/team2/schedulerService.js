@@ -2,6 +2,7 @@ const { runPayoutCycle } = require('./payoutOrchestratorService');
 const { buildOpsSummary } = require('./opsSummaryService');
 const { runDailyReconciliation } = require('./reconciliationService');
 const { sendOpsAlert } = require('./alertService');
+const { runClaimFraudBackfill } = require('./claimFraudBackfillService');
 
 const SCHEDULER_ENABLED = String(process.env.TEAM2_SCHEDULER_ENABLED || 'true').toLowerCase() !== 'false';
 const PAYOUT_INTERVAL_MS = Number(process.env.TEAM2_PAYOUT_CYCLE_INTERVAL_MS || 2 * 60 * 1000);
@@ -9,6 +10,10 @@ const PAYOUT_BATCH_LIMIT = Number(process.env.TEAM2_PAYOUT_BATCH_LIMIT || 50);
 const HEALTH_INTERVAL_MS = Number(process.env.TEAM2_HEALTH_CHECK_INTERVAL_MS || 60 * 60 * 1000);
 const RECON_INTERVAL_MS = Number(process.env.TEAM2_RECONCILIATION_INTERVAL_MS || 24 * 60 * 60 * 1000);
 const MANUAL_QUEUE_ALERT_THRESHOLD = Number(process.env.TEAM2_ALERT_MANUAL_QUEUE_THRESHOLD || 25);
+const STALE_PENDING_RESCORING_ENABLED = String(process.env.TEAM2_STALE_PENDING_RESCORING_ENABLED || 'true').toLowerCase() !== 'false';
+const STALE_PENDING_RESCORING_INTERVAL_MS = Number(process.env.TEAM2_STALE_PENDING_RESCORING_INTERVAL_MS || 30 * 60 * 1000);
+const STALE_PENDING_RESCORING_BATCH_LIMIT = Number(process.env.TEAM2_STALE_PENDING_RESCORING_BATCH_LIMIT || 25);
+const STALE_PENDING_RESCORING_AGE_HOURS = Number(process.env.TEAM2_STALE_PENDING_RESCORING_AGE_HOURS || 6);
 
 let started = false;
 let startedAt = null;
@@ -50,6 +55,19 @@ const runHealthCheck = async () => {
   return summary;
 };
 
+const runStalePendingRescoring = async () => {
+  if (!STALE_PENDING_RESCORING_ENABLED) {
+    return { skipped: true };
+  }
+
+  return runClaimFraudBackfill({
+    limit: STALE_PENDING_RESCORING_BATCH_LIMIT,
+    settlementStatuses: ['pending'],
+    unscoredOnly: false,
+    olderThanHours: STALE_PENDING_RESCORING_AGE_HOURS,
+  });
+};
+
 const startTeam2Schedulers = () => {
   if (!SCHEDULER_ENABLED || started) {
     return;
@@ -59,12 +77,17 @@ const startTeam2Schedulers = () => {
   startedAt = new Date();
 
   safeTick('payout_cycle_initial', () => runPayoutCycle({ limit: PAYOUT_BATCH_LIMIT }));
+  safeTick('stale_pending_rescoring_initial', runStalePendingRescoring);
   safeTick('health_check_initial', runHealthCheck);
   safeTick('reconciliation_initial', () => runDailyReconciliation({ emitAlert: true }));
 
   handles.push(setInterval(() => {
     safeTick('payout_cycle', () => runPayoutCycle({ limit: PAYOUT_BATCH_LIMIT }));
   }, PAYOUT_INTERVAL_MS));
+
+  handles.push(setInterval(() => {
+    safeTick('stale_pending_rescoring', runStalePendingRescoring);
+  }, STALE_PENDING_RESCORING_INTERVAL_MS));
 
   handles.push(setInterval(() => {
     safeTick('health_check', runHealthCheck);
@@ -76,6 +99,7 @@ const startTeam2Schedulers = () => {
 
   console.log('Team2 scheduler started', {
     PAYOUT_INTERVAL_MS,
+    STALE_PENDING_RESCORING_INTERVAL_MS,
     HEALTH_INTERVAL_MS,
     RECON_INTERVAL_MS,
   });
@@ -95,9 +119,12 @@ const getSchedulerStatus = () => ({
   startedAt: startedAt ? startedAt.toISOString() : null,
   intervals: {
     payoutCycleMs: PAYOUT_INTERVAL_MS,
+    stalePendingRescoringMs: STALE_PENDING_RESCORING_INTERVAL_MS,
     healthCheckMs: HEALTH_INTERVAL_MS,
     reconciliationMs: RECON_INTERVAL_MS,
     batchLimit: PAYOUT_BATCH_LIMIT,
+    stalePendingBatchLimit: STALE_PENDING_RESCORING_BATCH_LIMIT,
+    stalePendingAgeHours: STALE_PENDING_RESCORING_AGE_HOURS,
   },
 });
 

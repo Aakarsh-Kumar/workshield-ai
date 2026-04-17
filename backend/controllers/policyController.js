@@ -1,5 +1,6 @@
 const { createPolicy, getPremiumPrediction } = require('../services/policyService');
 const { processTriggerEvent } = require('../services/triggerService');
+const { getLocationRiskMultiplier } = require('../services/riskProfileService');
 const Policy = require('../models/Policy');
 const { fetchRainfallMm } = require('../services/weatherService');
 
@@ -71,22 +72,33 @@ exports.getPolicy = async (req, res) => {
  */
 exports.getQuote = async (req, res) => {
   try {
-    const { weeklyDeliveries, platform, riskScore } = req.body;
+    const { weeklyDeliveries, platform, riskScore, coverageAmount } = req.body;
 
-    if (weeklyDeliveries == null || !platform) {
-      return res.status(400).json({ success: false, message: 'weeklyDeliveries and platform are required' });
+    if (weeklyDeliveries == null || !platform || coverageAmount == null) {
+      return res.status(400).json({ success: false, message: 'weeklyDeliveries, platform, and coverageAmount are required' });
     }
+
+    const { locationRiskMultiplier, matchedZones } = await getLocationRiskMultiplier(req.user.id)
+      .catch(() => ({ locationRiskMultiplier: 1.0, matchedZones: [] }));
 
     const premium = await getPremiumPrediction(
       Number(weeklyDeliveries),
       platform,
       Number(riskScore ?? 0.5),
+      locationRiskMultiplier,
+      Number(coverageAmount),
     );
 
     res.json({
       success: true,
       premium,
       currency: 'INR',
+      locationRiskMultiplier,
+      hazardZonesDetected: matchedZones.map((zone) => ({
+        zoneId: zone.zoneId,
+        hazardType: zone.hazardType,
+        name: zone.name,
+      })),
       note: 'Quote valid for 10 minutes. Actual premium may vary at issuance.',
     });
   } catch (err) {

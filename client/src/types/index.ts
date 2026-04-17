@@ -10,6 +10,8 @@ export type {
   Team2OpsSummary,
   Team2SchedulerStatus,
   Team2PayoutAttempt,
+  Team2ManualReviewAction,
+  Team2AdminClaimDetail,
   Team2AuditLog,
 } from '@/lib/apiClient';
 
@@ -35,7 +37,8 @@ export type TriggerType =
   | 'rainfall'
   | 'vehicle_accident'
   | 'platform_outage'
-  | 'hospitalization';
+  | 'hospitalization'
+  | 'traffic_congestion';
 
 export type PolicyStatus = 'active' | 'expired' | 'cancelled' | 'claimed';
 export type ClaimStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'paid';

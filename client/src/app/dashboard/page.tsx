@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,13 +14,29 @@ import { formatRelativeTime } from '@/utils';
 import { BarList } from '@/components/workshield/bar-list';
 import { StatusChip } from '@/components/workshield/status-chip';
 import { ChatSupport } from '@/components/workshield/chat-support';
+import { useLocationTracking } from '@/hooks/useLocationTracking';
+
+const LocationMap = dynamic(
+  () => import('@/components/workshield/location-map').then((module) => module.LocationMap),
+  { ssr: false },
+);
 
 const EVENT_VIEW: Record<string, { label: string; icon: string; barClass: string; trackClass: string }> = {
-  rainfall: { label: 'Rain', icon: '🌧️', barClass: 'bg-sky-500', trackClass: 'bg-sky-100' },
-  platform_outage: { label: 'App down', icon: '📵', barClass: 'bg-amber-500', trackClass: 'bg-amber-100' },
-  vehicle_accident: { label: 'Accident', icon: '🚗', barClass: 'bg-rose-500', trackClass: 'bg-rose-100' },
-  hospitalization: { label: 'Hospital', icon: '🏥', barClass: 'bg-emerald-500', trackClass: 'bg-emerald-100' },
+  rainfall: { label: 'Rain', icon: 'Rain', barClass: 'bg-sky-500', trackClass: 'bg-sky-100' },
+  platform_outage: { label: 'App down', icon: 'App', barClass: 'bg-amber-500', trackClass: 'bg-amber-100' },
+  traffic_congestion: { label: 'Traffic', icon: 'Traffic', barClass: 'bg-fuchsia-500', trackClass: 'bg-fuchsia-100' },
+  vehicle_accident: { label: 'Accident', icon: 'Crash', barClass: 'bg-rose-500', trackClass: 'bg-rose-100' },
+  hospitalization: { label: 'Hospital', icon: 'Care', barClass: 'bg-emerald-500', trackClass: 'bg-emerald-100' },
 };
+
+function trackingSummary(isTracking: boolean, hasPermission: boolean | null, syncStatus: string) {
+  if (hasPermission === false) return 'Location permission is off. Quotes and disaster validation stay neutral until enabled.';
+  if (!isTracking) return 'Location tracking is preparing. Keep the app open after permission to build route-based pricing context.';
+  if (syncStatus === 'success') return 'Tracking and sync are active. Your route history can inform pricing and zone validation.';
+  if (syncStatus === 'syncing') return 'Tracking is active and recent pings are uploading.';
+  if (syncStatus === 'error') return 'Tracking is active, but the latest sync failed and will retry automatically.';
+  return 'Tracking is active. New pings will sync in the background.';
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -28,6 +45,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
+
+  const { isTracking, syncStatus, syncDetail, hasPermission, liveCoords, trail } = useLocationTracking();
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -72,10 +91,10 @@ export default function DashboardPage() {
   }, [claims]);
 
   const eventTrack = useMemo(() => {
-    const keys = ['rainfall', 'platform_outage', 'vehicle_accident', 'hospitalization'] as const;
+    const keys = ['rainfall', 'platform_outage', 'traffic_congestion', 'vehicle_accident', 'hospitalization'] as const;
     return keys.map((key) => ({
       id: key,
-      label: `${EVENT_VIEW[key].icon} ${EVENT_VIEW[key].label}`,
+      label: `${EVENT_VIEW[key].label}`,
       value: claims.filter((claim) => claim.triggerType === key).length,
       barClass: EVENT_VIEW[key].barClass,
       trackClass: EVENT_VIEW[key].trackClass,
@@ -120,7 +139,6 @@ export default function DashboardPage() {
           <CardContent className="p-5 sm:p-6">
             <p className="text-xs uppercase tracking-[0.16em] text-sky-200">Earnings protected</p>
             <p className="mt-2 text-3xl font-semibold sm:text-4xl">INR {totalProtected.toLocaleString('en-IN')}</p>
-
             <p className="mt-3 max-w-xl text-sm text-slate-200">
               Your income cover is active for weekly work. If rain, app outage, accident, or hospital event happens, file a claim and track payout here.
             </p>
@@ -128,6 +146,7 @@ export default function DashboardPage() {
             <div className="mt-4 flex flex-wrap gap-2 text-xs">
               <span className="ws-chip-rain rounded-full px-3 py-1">Rain</span>
               <span className="ws-chip-outage rounded-full px-3 py-1">App down</span>
+              <span className="rounded-full bg-fuchsia-100 px-3 py-1 text-fuchsia-700">Traffic</span>
               <span className="ws-chip-accident rounded-full px-3 py-1">Accident</span>
               <span className="ws-chip-health rounded-full px-3 py-1">Hospital</span>
             </div>
@@ -139,6 +158,32 @@ export default function DashboardPage() {
               <Button size="sm" variant="outline" className="border-white/40 bg-white/10 text-white hover:bg-white/20" onClick={() => router.push('/claims/new')}>
                 File claim
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="ws-card border-0">
+          <CardContent className="p-4">
+            <div className="space-y-4">
+              <LocationMap coords={liveCoords} trail={trail} hasPermission={hasPermission} />
+
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Location intelligence</h2>
+                  <p className="mt-1 text-sm text-slate-600">{trackingSummary(isTracking, hasPermission, syncStatus)}</p>
+                  {syncDetail ? <p className="mt-2 text-xs text-slate-500">{syncDetail}</p> : null}
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  <p>Permission: {hasPermission === null ? 'Checking' : hasPermission ? 'Allowed' : 'Denied'}</p>
+                  <p>Tracking: {isTracking ? 'Active' : 'Inactive'}</p>
+                  <p>Sync: {syncStatus}</p>
+                  {liveCoords ? (
+                    <p className="finance-mono text-xs text-slate-500">
+                      {liveCoords.lat.toFixed(4)}, {liveCoords.lng.toFixed(4)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -159,7 +204,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-5 text-sm text-slate-600">
-                  No active plan yet. Tap "Buy weekly plan" to start protection.
+                  No active plan yet. Tap &quot;Buy weekly plan&quot; to start protection.
                 </p>
               )}
             </CardContent>
@@ -202,22 +247,30 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">
-                  {recentClaims.map((claim) => (
-                    <article key={claim._id} className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-slate-900">
-                          {(EVENT_VIEW[claim.triggerType]?.icon || '🧾')} {EVENT_VIEW[claim.triggerType]?.label || claim.triggerType}
+                  {recentClaims.map((claim) => {
+                    const zoneValidation = claim.evaluationMeta?.zoneValidation as { inZone?: boolean | null } | undefined;
+                    return (
+                      <article key={claim._id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-900">
+                            {EVENT_VIEW[claim.triggerType]?.label || claim.triggerType}
+                          </p>
+                          <StatusChip status={claim.settlementStatus || claim.status} />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-700">
+                          {claim.reasonDetail || claim.remarks || 'Claim received and being processed.'}
                         </p>
-                        <StatusChip status={claim.settlementStatus || claim.status} />
-                      </div>
-                      <p className="mt-1 text-xs text-slate-700">
-                        {claim.reasonDetail || claim.remarks || 'Claim received and being processed.'}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        INR {Number(claim.approvedAmount || claim.claimAmount || 0).toLocaleString('en-IN')} · {formatRelativeTime(claim.createdAt)}
-                      </p>
-                    </article>
-                  ))}
+                        <p className="mt-1 text-xs text-slate-600">
+                          INR {Number(claim.approvedAmount || claim.claimAmount || 0).toLocaleString('en-IN')} · {formatRelativeTime(claim.createdAt)}
+                        </p>
+                        {zoneValidation?.inZone !== undefined && zoneValidation?.inZone !== null ? (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Zone validation: {zoneValidation.inZone ? 'Matched' : 'Not matched'}
+                          </p>
+                        ) : null}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
