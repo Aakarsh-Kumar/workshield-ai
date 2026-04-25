@@ -61,7 +61,7 @@ const PORT = process.env.PORT || 4000;
 
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 WorkShield backend running on port ${PORT}`);
     startTeam2Schedulers();
   });
