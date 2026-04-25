@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import apiClient from '@/lib/apiClient';
 import { useAppStore } from '@/store';
+import { getPolicyScoreTier } from '@/components/workshield/policy-score-card';
 
 const WEEKLY_PLANS = [
   { id: 'basic', cover: 1000, label: 'Basic', note: 'Good for light weekly support', services: ['Rainfall', 'Platform outage'] },
@@ -155,9 +156,14 @@ export default function NewPolicyPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Premium band hint</p>
-                <p className="mt-1 text-sm font-medium text-slate-800">{priceHint}</p>
-                <p className="mt-1 text-xs text-slate-600">Based on activity and risk profile.</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Your policy score</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-lg font-semibold text-slate-900">{currentUser?.policyScore ?? 700}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold text-white ${getPolicyScoreTier(currentUser?.policyScore ?? 700).color}`}>
+                    {getPolicyScoreTier(currentUser?.policyScore ?? 700).tier}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">Better scores get better premium rates.</p>
               </div>
             </div>
 

@@ -126,26 +126,33 @@ export default function Team2OpsPage() {
         updatedAt: claim.processedAt || claim.createdAt,
         source: 'claim',
         workerLabel: worker?.name || worker?.email || 'Latest claim',
+        workerPolicyScore: typeof worker === 'object' && worker ? (worker.policyScore || 700) : 700,
       };
     });
 
-    const fromQueue: AdminClaimRow[] = reviewQueue.map((claim) => ({
-      id: claim._id,
-      triggerType: claim.triggerType,
-      verificationState: claim.verificationState,
-      status: claim.settlementStatus || claim.status,
-      amount: Number(claim.claimAmount || 0),
-      fraudScore: claim.fraudScore ?? null,
-      fraudModelVersion: claim.fraudModelVersion,
-      reasonCode: claim.reasonCode,
-      updatedAt: claim.processedAt || claim.createdAt,
-      source: 'review',
-    }));
+    const fromQueue: AdminClaimRow[] = reviewQueue.map((claim) => {
+      const worker = typeof claim.userId === 'object' && claim.userId ? claim.userId : null;
+
+      return {
+        id: claim._id,
+        triggerType: claim.triggerType,
+        verificationState: claim.verificationState,
+        status: claim.settlementStatus || claim.status,
+        amount: Number(claim.claimAmount || 0),
+        fraudScore: claim.fraudScore ?? null,
+        fraudModelVersion: claim.fraudModelVersion,
+        reasonCode: claim.reasonCode,
+        updatedAt: claim.processedAt || claim.createdAt,
+        source: 'review',
+        workerPolicyScore: typeof worker === 'object' && worker ? (worker.policyScore || 700) : 700,
+      };
+    });
 
     const fromAttempts: AdminClaimRow[] = attempts.map((attempt) => {
       const claim = attempt.claimId;
       const claimId = claim?._id || attempt._id;
       const amount = Number(claim?.approvedAmount || claim?.claimAmount || 0);
+      const worker = typeof claim?.userId === 'object' && claim?.userId ? claim.userId : null;
 
       return {
         id: claimId,
@@ -160,6 +167,7 @@ export default function Team2OpsPage() {
         source: 'payout',
         attemptCount: attempt.attemptCount,
         providerReference: attempt.providerReference,
+        workerPolicyScore: typeof worker === 'object' && worker ? (worker.policyScore || 700) : 700,
       };
     });
 

@@ -18,6 +18,7 @@ export type AdminClaimRow = {
   attemptCount?: number;
   providerReference?: string;
   workerLabel?: string;
+  workerPolicyScore?: number;
 };
 
 type TabKey = 'all' | 'flagged' | 'approved';
@@ -100,6 +101,7 @@ export function AdminClaimsTable({
               <th className="px-4 py-3">Claim</th>
               <th className="px-4 py-3">Event</th>
               <th className="px-4 py-3">Verification</th>
+              <th className="px-4 py-3">Worker Score</th>
               <th className="px-4 py-3">Risk</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Amount</th>
@@ -141,6 +143,11 @@ export function AdminClaimsTable({
                       <td className="px-4 py-3 align-top text-slate-700">{SIMPLE_TRIGGER_LABEL[row.triggerType] || row.triggerType}</td>
                       <td className="px-4 py-3 align-top">
                         <StatusChip status={row.verificationState || 'pending'} />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className={`rounded-md px-2 py-1 text-xs font-semibold ${policyScoreTone(row.workerPolicyScore)}`}>
+                          {row.workerPolicyScore == null ? 'NA' : row.workerPolicyScore}
+                        </span>
                       </td>
                       <td className="px-4 py-3 align-top">
                         <span className={`rounded-md px-2 py-1 text-xs font-semibold ${riskTone(row.fraudScore)}`}>
@@ -201,6 +208,15 @@ function riskTone(score: number | null) {
   if (score >= 0.7) return 'bg-rose-100 text-rose-700';
   if (score >= 0.3) return 'bg-amber-100 text-amber-700';
   return 'bg-emerald-100 text-emerald-700';
+}
+
+function policyScoreTone(score: number | null | undefined) {
+  if (score == null) return 'bg-slate-100 text-slate-600';
+  if (score >= 850) return 'bg-green-100 text-green-700';
+  if (score >= 750) return 'bg-blue-100 text-blue-700';
+  if (score >= 650) return 'bg-yellow-100 text-yellow-700';
+  if (score >= 550) return 'bg-orange-100 text-orange-700';
+  return 'bg-red-100 text-red-700';
 }
 
 function InfoBox({ label, value }: { label: string; value: string }) {

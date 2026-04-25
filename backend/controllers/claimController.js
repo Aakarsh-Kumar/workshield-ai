@@ -14,6 +14,7 @@ const {
 const { fetchRainfallMm } = require('../services/weatherService');
 const { validateWorkerInZone } = require('../services/zoneValidatorService');
 const { enrichClaimRecord } = require('../services/claimLifecycleService');
+const { updateUserPolicyScore } = require('../services/policyScoreService');
 
 const resolveActivePolicy = async (policyRef, userId) => {
   const policyLookup = String(policyRef || '').trim();
@@ -439,6 +440,11 @@ exports.createClaim = async (req, res) => {
     const latestClaim = await Claim.findById(claim._id)
       .populate('policyId', 'policyNumber type coverageAmount platform')
       .lean();
+
+    // Update user's policy score based on new claim
+    await updateUserPolicyScore(req.user.id).catch((e) => {
+      console.error(`Policy score update failed for user ${req.user.id}:`, e.message);
+    });
 
     res.status(201).json({
       success: true,

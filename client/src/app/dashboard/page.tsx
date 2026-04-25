@@ -13,6 +13,7 @@ import { useAppStore } from '@/store';
 import { formatRelativeTime } from '@/utils';
 import { BarList } from '@/components/workshield/bar-list';
 import { StatusChip } from '@/components/workshield/status-chip';
+import { PolicyScoreCard } from '@/components/workshield/policy-score-card';
 
 import { useLocationTracking } from '@/hooks/useLocationTracking';
 
@@ -251,6 +252,14 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
+          {loading ? (
+            <Skeleton className="h-96 w-full rounded-xl" />
+          ) : (
+            <PolicyScoreCard score={currentUser?.policyScore || 700} />
+          )}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
           <Card className="ws-card border-0">
             <CardContent className="p-4">
               <h2 className="text-base font-semibold text-slate-900">Claim status tracker</h2>
@@ -260,9 +269,7 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
           <Card className="ws-card border-0">
             <CardContent className="p-4">
               <h2 className="text-base font-semibold text-slate-900">Event triggers</h2>
@@ -272,7 +279,9 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </section>
 
+        <section>
           <Card className="ws-card border-0">
             <CardContent className="p-4">
               <h2 className="text-base font-semibold text-slate-900">Recent claims</h2>

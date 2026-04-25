@@ -16,6 +16,7 @@ const sanitizeUser = (user) => ({
   platform: user.platform,
   weeklyDeliveries: user.weeklyDeliveries,
   riskScore: user.riskScore,
+  policyScore: user.policyScore || 700,
   kycVerified: user.kycVerified,
   role: user.role,
 });

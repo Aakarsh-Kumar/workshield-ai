@@ -24,6 +24,9 @@ const UserSchema = new mongoose.Schema(
     // AI-assigned risk score (0–1); updated periodically by AI service
     riskScore: { type: Number, default: 0.5, min: 0, max: 1 },
 
+    // Policy score (0–1000); calculated from claim approval history, like credit score
+    policyScore: { type: Number, default: 700, min: 0, max: 1000 },
+
     isActive: { type: Boolean, default: true },
     kycVerified: { type: Boolean, default: false },
     role: { type: String, enum: ['worker', 'admin'], default: 'worker' },

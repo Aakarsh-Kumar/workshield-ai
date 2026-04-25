@@ -36,6 +36,7 @@ export interface User {
   platform: 'swiggy' | 'zomato' | 'blinkit' | 'dunzo' | 'other';
   weeklyDeliveries: number;
   riskScore: number;
+  policyScore: number;
   kycVerified: boolean;
   role: 'worker' | 'admin';
 }
@@ -67,6 +68,7 @@ export interface Claim {
     name?: string;
     email?: string;
     platform?: string;
+    policyScore?: number;
   };
   triggerType: 'rainfall' | 'vehicle_accident' | 'platform_outage' | 'hospitalization' | 'traffic_congestion';
   triggerValue: number;
@@ -237,6 +239,13 @@ export interface Team2PayoutAttempt {
     payoutEligibility?: boolean;
     reasonCode?: string;
     reasonDetail?: string;
+    userId?: string | {
+      _id: string;
+      name?: string;
+      email?: string;
+      platform?: string;
+      policyScore?: number;
+    };
   };
   idempotencyKey: string;
   status: string;
